@@ -4,12 +4,13 @@ import { io } from 'socket.io-client';
 const myVideo = document.getElementById('my-video');
 const strangerVideo = document.getElementById('video');
 const sendButton = document.getElementById('send');
-const inputField = document.querySelector('input');
+const inputField = document.getElementById('messageInput');
 const chatWrapper = document.querySelector('.chat-holder .wrapper');
 const typingIndicator = document.getElementById('typingIndicator');
 const nextBtn = document.getElementById('nextBtn');
 const exitBtn = document.getElementById('exitBtn');
 const spinner = document.querySelector('.modal');
+const cameraBtn = document.getElementById('cameraBtn');
 
 // Estado global
 let peer = null;
@@ -243,51 +244,41 @@ function setupSocketEvents() {
     fullCleanup();
   });
 
-  // WebRTC
-  socket.on('sdp:reply', async ({ sdp }) => {
-    if (!peer) return;
+// WebRTC
+   socket.on('sdp:reply', async ({ sdp }) => {
+     if (!peer) return;
 
-    try {
-      await peer.setRemoteDescription(new RTCSessionDescription(sdp));
-      if (type === 'p2') {
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        socket.emit('sdp:send', { sdp: peer.localDescription });
-      }
-    } catch (err) {}
-  });
+     try {
+       await peer.setRemoteDescription(new RTCSessionDescription(sdp));
+       if (type === 'p2') {
+         const answer = await peer.createAnswer();
+         await peer.setLocalDescription(answer);
+         socket.emit('sdp:send', { sdp: peer.localDescription });
+       }
+     } catch (err) {
+       console.error('Error handling SDP reply:', err);
+     }
+   });
 
-  socket.on('ice:reply', async ({ candidate }) => {
-    if (!peer) return;
+   socket.on('ice:reply', async ({ candidate }) => {
+     if (!peer) return;
 
-    try {
-      await peer.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (err) {}
-  });
+     try {
+       await peer.addIceCandidate(new RTCIceCandidate(candidate));
+     } catch (err) {
+       console.error('Error handling ICE candidate:', err);
+     }
+   });
 
-  // Manejar SDP recibido
-  socket.on('sdp:receive', async ({ sdp }) => {
-    if (!peer) return;
+   socket.on('ice:reply', async ({ candidate }) => {
+     if (!peer) return;
 
-    try {
-      await peer.setRemoteDescription(new RTCSessionDescription(sdp));
-
-      if (sdp.type === 'offer') {
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        socket.emit('sdp:send', { sdp: peer.localDescription });
-      }
-    } catch (err) {}
-  });
-
-  // Manejar ICE recibido
-  socket.on('ice:receive', ({ candidate }) => {
-    if (!peer || !candidate) return;
-
-    try {
-      peer.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (err) {}
-  });
+     try {
+       await peer.addIceCandidate(new RTCIceCandidate(candidate));
+     } catch (err) {
+       console.error('Error handling ICE candidate:', err);
+     }
+   });
 
   // Chat
   socket.on('typing', (isTyping) => {

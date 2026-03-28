@@ -5,7 +5,19 @@ import { handelStart, handelDisconnect, getType } from './lib';
 import { GetTypesResult, room } from './types';
 
 const app = express();
-app.use(cors());
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST'],
+}));
 
 const server = app.listen(8000, () => console.log('Server is up, 8000'));
 const io = new Server(server, {
@@ -38,27 +50,23 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // DISCONNECT
-  socket.on('disconnect', () => {
+// DISCONNECT
+socket.on('disconnect', () => {
+  handelDisconnect(socket.id, roomArr, io);
+  if (online > 0) {
     online--;
     io.emit('online', online);
-    try {
-      handelDisconnect(socket.id, roomArr, io);
-    } catch (error) {
-      console.error('Error in disconnect handler:', error);
-    }
-  });
+  }
+});
 
-  // DISCONNECT-ME
-  socket.on('disconnect-me', () => {
-    try {
-      handelDisconnect(socket.id, roomArr, io);
-      online--;
-      io.emit('online', online);
-    } catch (error) {
-      console.error('Error in disconnect-me handler:', error);
-    }
-  });
+// DISCONNECT-ME
+socket.on('disconnect-me', () => {
+  handelDisconnect(socket.id, roomArr, io);
+  if (online > 0) {
+    online--;
+    io.emit('online', online);
+  }
+});
 
   // NEXT
   socket.on('next', () => {
@@ -109,31 +117,45 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // ICE CANDIDATE
-  socket.on('ice:send', ({ candidate }: { candidate: RTCIceCandidate }) => {
-    try {
-      const type: GetTypesResult = getType(socket.id, roomArr);
-      if (type && 'type' in type) {
-        const target = type.type === 'p1' ? type.p2id : type.p1id;
-        if (target) io.to(target).emit('ice:reply', { candidate, from: socket.id });
-      }
-    } catch (error) {
-      console.error('Error in ice:send handler:', error);
+// ICE CANDIDATE
+socket.on('ice:send', (data: { candidate: any }) => {
+  try {
+    // Validar que candidate sea un objeto válido
+    if (!data || !data.candidate || typeof data.candidate !== 'object') {
+      socket.emit('error', { message: 'Invalid ICE candidate data' });
+      return;
     }
-  });
+    
+    const type: GetTypesResult = getType(socket.id, roomArr);
+    if (type && 'type' in type) {
+      const target = type.type === 'p1' ? type.p2id : type.p1id;
+      if (target) io.to(target).emit('ice:reply', { candidate: data.candidate, from: socket.id });
+    }
+  } catch (error) {
+    console.error('Error in ice:send handler:', error);
+    socket.emit('error', { message: 'Internal server error' });
+  }
+});
 
-  // SDP
-  socket.on('sdp:send', ({ sdp }: { sdp: RTCSessionDescription }) => {
-    try {
-      const type = getType(socket.id, roomArr);
-      if (type && 'type' in type) {
-        const target = type.type === 'p1' ? type.p2id : type.p1id;
-        if (target) io.to(target).emit('sdp:reply', { sdp, from: socket.id });
-      }
-    } catch (error) {
-      console.error('Error in sdp:send handler:', error);
+// SDP
+socket.on('sdp:send', (data: { sdp: any }) => {
+  try {
+    // Validar que sdp sea un objeto válido con type y sdp
+    if (!data || !data.sdp || typeof data.sdp !== 'object' || !data.sdp.type) {
+      socket.emit('error', { message: 'Invalid SDP data' });
+      return;
     }
-  });
+    
+    const type = getType(socket.id, roomArr);
+    if (type && 'type' in type) {
+      const target = type.type === 'p1' ? type.p2id : type.p1id;
+      if (target) io.to(target).emit('sdp:reply', { sdp: data.sdp, from: socket.id });
+    }
+  } catch (error) {
+    console.error('Error in sdp:send handler:', error);
+    socket.emit('error', { message: 'Internal server error' });
+  }
+});
 
   // CHAT
   socket.on('send-message', (input: string, userType: string, roomid: string) => {
