@@ -5,13 +5,16 @@ exports.handelDisconnect = handelDisconnect;
 exports.getType = getType;
 const uuid_1 = require("uuid");
 function handelStart(roomArr, socket, cb, io) {
+    console.log('[SERVER] Nueva conexión start:', socket.id);
     // check available rooms
     let availableroom = checkAvailableRoom();
     if (availableroom.is) {
+        console.log('[SERVER] Sala disponible:', availableroom.roomid);
         socket.join(availableroom.roomid);
         cb('p2');
         closeRoom(availableroom.roomid);
         if (availableroom === null || availableroom === void 0 ? void 0 : availableroom.room) {
+            console.log('[SERVER] Enviando remote-socket a p1:', availableroom.room.p1.id, 'nuevo p2:', socket.id);
             io.to(availableroom.room.p1.id).emit('remote-socket', socket.id);
             socket.emit('remote-socket', availableroom.room.p1.id);
             socket.emit('roomid', availableroom.room.roomid);
