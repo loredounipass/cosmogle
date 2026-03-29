@@ -37,8 +37,10 @@ let preferredVideoConstraints = null;
 // Detección de errores de conexión
 let connectionTimeout = null;
 let iceTimeout = null;
+let iceKeepAliveInterval = null;
 const ICE_CONNECTION_TIMEOUT = 30000;
-const CONNECTION_RETRY_DELAY = 2000; 
+const CONNECTION_RETRY_DELAY = 2000;
+const ICE_KEEP_ALIVE_INTERVAL = 15000; // 15 segundos 
 
 // NUEVA función para detectar móviles
 function isMobile() {
