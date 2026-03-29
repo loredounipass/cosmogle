@@ -98,6 +98,12 @@ function log(type, msg, data = null) {
 // ============================================
 async function initMedia() {
   try {
+    // Reset camera state to ON
+    STATE.isCameraOff = false;
+    if (DOM.cameraBtn) {
+      DOM.cameraBtn.querySelector('.glitch-text').textContent = 'OFF';
+    }
+    
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(d => d.kind === 'videoinput');
     
@@ -123,13 +129,23 @@ async function initMedia() {
       video: videoConstraints
     });
     
+    // Ensure all video and audio tracks are ENABLED
+    STATE.localStream.getVideoTracks().forEach(track => {
+      track.enabled = true;
+    });
+    STATE.localStream.getAudioTracks().forEach(track => {
+      track.enabled = true;
+    });
+    
     DOM.myVideo.srcObject = STATE.localStream;
     DOM.myVideo.muted = true;
     STATE.preferredVideoConstraints = videoConstraints;
     
-    log('MEDIA', 'Stream initialized', { 
+    log('MEDIA', 'Stream initialized - Camera ON', { 
       width: videoConstraints.width.ideal, 
-      height: videoConstraints.height.ideal 
+      height: videoConstraints.height.ideal,
+      videoTracks: STATE.localStream.getVideoTracks().length,
+      audioTracks: STATE.localStream.getAudioTracks().length
     });
   } catch (err) {
     log('MEDIA', 'Error initializing media', err);
@@ -235,8 +251,16 @@ function createPeerConnection() {
     }
   };
   
-  // Add tracks if stream exists
+  // Add tracks if stream exists - ALWAYS ensure video is enabled
   if (STATE.localStream) {
+    // Ensure video tracks are enabled before adding to peer
+    STATE.localStream.getVideoTracks().forEach(track => {
+      track.enabled = true;
+    });
+    STATE.localStream.getAudioTracks().forEach(track => {
+      track.enabled = true;
+    });
+    
     STATE.localStream.getTracks().forEach(track => {
       STATE.peer.addTrack(track, STATE.localStream);
     });
