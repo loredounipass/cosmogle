@@ -226,142 +226,63 @@ async function initMedia() {
   }
 }
 
+// ============================================
+// SISTEMA SIMPLIFICADO DE REPRODUCCIÓN DE VIDEO
+// ============================================
+
 // Intentar reproducir el video con retry
 function attemptVideoPlay() {
   if (!strangerVideo.srcObject) return;
   
-  // Asegurar que el video esté muteado para reproducción automática
   strangerVideo.muted = true;
   
-  const tryPlay = () => {
-    if (!strangerVideo.srcObject) return;
-    
-    const playPromise = strangerVideo.play();
-    
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          console.log('[VIDEO] Reproducción iniciada correctamente');
-          videoPlayRetries = 0;
-          if (videoPlayInterval) {
-            clearInterval(videoPlayInterval);
-            videoPlayInterval = null;
-          }
-        })
-        .catch(err => {
-          videoPlayRetries++;
-          console.warn('[VIDEO] Error en reproducción:', err.name, 'Intento:', videoPlayRetries);
-          
-          // AbortError significa que el navegador canceló - intentar de nuevo con delay
-          if (err.name === 'AbortError' || err.name === 'NotAllowedError') {
-            if (videoPlayRetries < MAX_VIDEO_PLAY_RETRIES) {
-              const delay = Math.min(1000 * Math.pow(2, videoPlayRetries), 5000);
-              console.log('[VIDEO] Reintentando en', delay, 'ms (bloqueo automático)');
-              setTimeout(tryPlay, delay);
-            }
-          } else if (videoPlayRetries < MAX_VIDEO_PLAY_RETRIES) {
-            const delay = Math.min(1000 * Math.pow(2, videoPlayRetries), 5000);
-            setTimeout(tryPlay, delay);
-          } else {
-            console.error('[VIDEO] Máximo de intentos alcanzado');
-          }
-        });
-    }
-  };
+  const playPromise = strangerVideo.play();
   
-  tryPlay();
-}
-
-// Forzar reproducción con interacción del usuario
-function forceVideoPlay() {
-  strangerVideo.muted = true;
-  strangerVideo.play()
-    .then(() => {
-      console.log('[VIDEO] Reproducción forzada exitosa');
-      videoPlayRetries = 0;
-    })
-    .catch(err => {
-      console.warn('[VIDEO] Error en reproducción forzada:', err.name);
-      // Si falla forzada, continuar con retry normal
-    });
-}
-
-// Intentar reproducción cuando el video tiene datos suficientes
-function tryPlayWhenReady() {
-  if (!strangerVideo.srcObject) return;
-  
-  // Verificar si el video tiene datos suficientes para intentar reproducir
-  if (strangerVideo.readyState >= 2) { // HAVE_CURRENT_DATA o superior
-    attemptVideoPlay();
+  if (playPromise !== undefined) {
+    playPromise
+      .then(() => {
+        console.log('[VIDEO] Reproducción iniciada');
+        videoPlayRetries = 0;
+      })
+      .catch(err => {
+        if (videoPlayRetries >= MAX_VIDEO_PLAY_RETRIES) {
+          console.warn('[VIDEO] Máximo de intentos alcanzado');
+          return;
+        }
+        
+        videoPlayRetries++;
+        const delay = Math.min(1000 * Math.pow(2, videoPlayRetries), 5000);
+        console.warn('[VIDEO] Error:', err.name, '- Reintentando en', delay, 'ms');
+        setTimeout(attemptVideoPlay, delay);
+      });
   }
 }
 
-// Agregar listeners para mejorar reproducción
+// Configurar listeners esenciales para video
 function setupVideoListeners() {
-  strangerVideo.oncanplay = () => {
-    console.log('[VIDEO] oncanplay - intentando reproducir');
-    tryPlayWhenReady();
-  };
-  
-  strangerVideo.oncanplaythrough = () => {
-    console.log('[VIDEO] oncanplaythrough');
-    tryPlayWhenReady();
-  };
-  
-  strangerVideo.onplay = () => {
-    console.log('[VIDEO] Reproducción iniciada');
-    videoPlayRetries = 0;
-  };
-  
   strangerVideo.onplaying = () => {
-    console.log('[VIDEO] Video playing');
+    console.log('[VIDEO] Reproducción activa');
     videoPlayRetries = 0;
   };
   
-  strangerVideo.onseeked = () => {
-    console.log('[VIDEO] Seek completed');
-    tryPlayWhenReady();
+  strangerVideo.onpause = () => {
+    console.warn('[VIDEO] Video pausado');
   };
   
   strangerVideo.onwaiting = () => {
-    console.warn('[VIDEO] Video waiting - intentando reproducir');
-    // Cuando está waiting, puede ser que necesite más datos o haya un retraso
+    console.warn('[VIDEO] Esperando datos...');
     attemptVideoPlay();
-    // Reintentar después de un corto delay
-    setTimeout(attemptVideoPlay, 500);
   };
   
   strangerVideo.onstalled = () => {
-    console.warn('[VIDEO] Video stalled - reintentando');
+    console.warn('[VIDEO] Video stagnated');
     attemptVideoPlay();
-    // Reintentar después de un delay mayor para stalled
-    setTimeout(attemptVideoPlay, 1000);
   };
   
-  strangerVideo.onerror = (e) => {
-    console.error('[VIDEO] Error en elemento video:', strangerVideo.error);
-    // Intentar reproducir de nuevo en caso de error
-    setTimeout(attemptVideoPlay, 1000);
+  strangerVideo.onerror = () => {
+    console.error('[VIDEO] Error:', strangerVideo.error);
+    attemptVideoPlay();
   };
-  
-  // Intentar reproducir periódicamente si hay srcObject pero no se reproduce
-  const checkPlayInterval = setInterval(() => {
-    if (strangerVideo.srcObject && !strangerVideo.paused && !strangerVideo.ended) {
-      // Ya está reproduciéndose, limpiar interval
-      clearInterval(checkPlayInterval);
-    } else if (strangerVideo.srcObject) {
-      // Tiene fuente pero no se reproduce, intentar
-      attemptVideoPlay();
-    }
-  }, 2000);
-  
-  // También verificar en visibilitychange para cuando la tab vuelve a ser visible
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && strangerVideo.srcObject) {
-      console.log('[VIDEO] Tab visible nuevamente - verificando reproducción');
-      attemptVideoPlay();
-    }
-  });
 }
 
 // Detectar y manejar errores de conexión
@@ -666,7 +587,9 @@ let lastIceStateChange = Date.now();
   monitorConnectionQuality();
 }
 
-// Función para monitorear calidad de conexión WebRTC
+// ============================================
+// MONITOREO DE CONEXIÓN (optimizado)
+// ============================================
 let statsInterval = null;
 let lastBytesReceived = 0;
 let lastCheckTime = 0;
@@ -682,14 +605,11 @@ function monitorConnectionQuality() {
     
     try {
       const stats = await peer.getStats();
-      let videoOutbound = null;
       let videoInbound = null;
       let candidatePair = null;
       
+      // Solo收集 métricas clave
       stats.forEach(report => {
-        if (report.type === 'outbound-rtp' && report.kind === 'video') {
-          videoOutbound = report;
-        }
         if (report.type === 'inbound-rtp' && report.kind === 'video') {
           videoInbound = report;
         }
@@ -698,106 +618,74 @@ function monitorConnectionQuality() {
         }
       });
       
+      if (!videoInbound) return;
+      
       // Calcular bitrate recibido
       const now = Date.now();
-      if (videoInbound && lastCheckTime > 0) {
+      if (lastCheckTime > 0) {
         const timeDiff = (now - lastCheckTime) / 1000;
         const bytesDiff = (videoInbound.bytesReceived || 0) - lastBytesReceived;
         const bitrateReceived = timeDiff > 0 ? Math.round((bytesDiff * 8) / timeDiff) : 0;
-        
-        console.debug('[STATS] Bitrate recibido:', (bitrateReceived / 1000).toFixed(0) + 'kbps');
         
         // Adaptar calidad según bitrate
         adaptBitrate(bitrateReceived, candidatePair);
       }
       
-      lastBytesReceived = videoInbound?.bytesReceived || 0;
+      lastBytesReceived = videoInbound.bytesReceived || 0;
       lastCheckTime = now;
       
-      // Monitorear calidad de video entrante
-      if (videoInbound) {
-        const packetsLost = videoInbound.packetsLost || 0;
-        const packetsReceived = videoInbound.packetsReceived || 0;
-        const totalPackets = packetsLost + packetsReceived;
-        const lossRate = totalPackets > 0 ? (packetsLost / totalPackets * 100).toFixed(2) : 0;
-        
-        console.debug('[STATS] Video entrante:', {
-          width: videoInbound.frameWidth,
-          height: videoInbound.frameHeight,
-          fps: videoInbound.framesPerSecond,
-          packetsLost: packetsLost,
-          lossRate: lossRate + '%',
-          rtt: candidatePair?.currentRoundTripTime ? (candidatePair.currentRoundTripTime * 1000).toFixed(0) + 'ms' : 'N/A'
-        });
-        
-        // Alerta de mala calidad
-        if (parseFloat(lossRate) > 10) {
-          console.warn('[STATS] Alta pérdida de paquetes:', lossRate + '%');
-          handleConnectionError('high-packet-loss');
-        }
-      }
+      // Verificar pérdida de paquetes
+      const packetsLost = videoInbound.packetsLost || 0;
+      const totalPackets = (videoInbound.packetsReceived || 0) + packetsLost;
+      const lossRate = totalPackets > 0 ? (packetsLost / totalPackets) * 100 : 0;
       
-      // Monitorear calidad de video saliente
-      if (videoOutbound) {
-        console.debug('[STATS] Video saliente:', {
-          bytesSent: videoOutbound.bytesSent,
-          bitrate: videoOutbound.bitrateMean ? (videoOutbound.bitrateMean / 1000).toFixed(0) + 'kbps' : 'N/A',
-          frameWidth: videoOutbound.frameWidth,
-          frameHeight: videoOutbound.frameHeight,
-          framesPerSecond: videoOutbound.framesPerSecond
-        });
+      if (lossRate > 10) {
+        console.warn('[STATS] Alta pérdida de paquetes:', lossRate.toFixed(2) + '%');
+        handleConnectionError('high-packet-loss');
       }
     } catch (err) {
-      console.warn('[STATS] Error monitoreando:', err);
+      console.warn('[STATS] Error:', err.message);
     }
   }, 5000);
 }
 
-// Adaptar bitrate dinámicamente según calidad de conexión
+// ============================================
+// SISTEMA SIMPLIFICADO DE ADAPTACIÓN DE BITRATE
+// ============================================
+
+const QUALITY_PRESETS = {
+  high: { maxBitrate: 5000000, minBitrate: 1500000 },
+  medium: { maxBitrate: 2500000, minBitrate: 800000 },
+  low: { maxBitrate: 1000000, minBitrate: 300000 }
+};
+
 let currentQualityLevel = 'high';
-let qualityCheckCount = 0;
-const QUALITY_CHECK_THRESHOLD = 3;
 
 function adaptBitrate(bitrate, candidatePair) {
   if (!peer) return;
   
   const rtt = candidatePair?.currentRoundTripTime ? candidatePair.currentRoundTripTime * 1000 : 0;
   
+  // Determinar nivel de calidad
   let newQualityLevel = 'high';
-  let targetBitrate = 4000000;
   
-  // Más sensible para mejorar calidad, menos sensible para bajarla
   if (rtt > 400 || bitrate < 300000) {
     newQualityLevel = 'low';
-    targetBitrate = 1000000;
-    qualityCheckCount++;
   } else if (rtt > 200 || bitrate < 800000) {
     newQualityLevel = 'medium';
-    targetBitrate = 2500000;
-    qualityCheckCount++;
-  } else {
-    // Recuperar calidad solo si ha estado estable
-    qualityCheckCount = Math.max(0, qualityCheckCount - 1);
-    if (qualityCheckCount === 0) {
-      newQualityLevel = 'high';
-      targetBitrate = 5000000;
-    } else {
-      newQualityLevel = currentQualityLevel;
-      targetBitrate = currentQualityLevel === 'low' ? 1000000 : 2500000;
-    }
   }
   
   if (newQualityLevel !== currentQualityLevel) {
-    console.log('[QUALITY] Cambiando calidad:', currentQualityLevel, '->', newQualityLevel, '| Bitrate:', targetBitrate, '| RTT:', rtt.toFixed(0), 'ms');
+    const preset = QUALITY_PRESETS[newQualityLevel];
+    console.log('[QUALITY] Cambiando calidad:', currentQualityLevel, '->', newQualityLevel, '| RTT:', rtt.toFixed(0), 'ms');
     currentQualityLevel = newQualityLevel;
     
-    const senders = peer.getSenders();
-    senders.forEach(sender => {
+    peer.getSenders().forEach(sender => {
       if (sender.track?.kind === 'video') {
         const params = sender.getParameters();
-        if (params.encodings && params.encodings[0]) {
-          params.encodings[0].maxBitrate = targetBitrate;
-          params.encodings[0].minBitrate = Math.floor(targetBitrate * 0.3);
+        if (params.encodings?.[0]) {
+          params.encodings[0].maxBitrate = preset.maxBitrate;
+          params.encodings[0].minBitrate = preset.minBitrate;
           sender.setParameters(params).catch(() => {});
         }
       }
@@ -1110,91 +998,9 @@ function setupSocketEvents() {
       alert('Debe haber dos personas en la sala para proceder.');
     }
   });
-
-  function addTracksToPeer() {
-    if (!localStream || !peer) return;
-    
-    const videoTrack = localStream.getVideoTracks()[0];
-    const audioTrack = localStream.getAudioTracks()[0];
-    
-    localStream.getTracks().forEach(track => {
-      const existingSender = peer.getSenders().find(s => s.track?.kind === track.kind);
-      if (!existingSender) {
-        console.log('[PEER] Agregando track:', track.kind);
-        peer.addTrack(track, localStream);
-      }
-    });
-    
-    console.log('[PEER] Total senders:', peer.getSenders().length);
-    
-    setTimeout(() => {
-      configureTrackQuality(videoTrack, audioTrack);
-    }, 200);
-    
-    processPendingMessages();
-  }
-  
-  function configureTrackQuality(videoTrack, audioTrack) {
-    if (!peer) return;
-    
-    const senders = peer.getSenders();
-    
-    senders.forEach(sender => {
-      if (!sender.track) return;
-      
-      const params = sender.getParameters();
-      if (!params.encodings) params.encodings = [{}];
-      
-      if (sender.track.kind === 'video') {
-        const isHD = preferredVideoConstraints?.width?.ideal >= 1920;
-        const maxBitrate = isHD ? 6000000 : 4000000;
-        const minBitrate = isHD ? 1500000 : 800000;
-        
-        params.encodings[0] = {
-          ...params.encodings[0],
-          maxBitrate: maxBitrate,
-          minBitrate: minBitrate,
-          scalabilityMode: 'L1T3',
-          networkPriority: 'high'
-        };
-        
-        console.log('[PEER] Configurando video:', { maxBitrate, minBitrate, isHD });
-        
-      } else if (sender.track.kind === 'audio') {
-        params.encodings[0] = {
-          ...params.encodings[0],
-          maxBitrate: 128000,
-          priority: 'high',
-          networkPriority: 'high'
-        };
-      }
-      
-      sender.setParameters(params).catch(err => {
-        console.warn('[PEER] Error configurando calidad:', err);
-      });
-    });
-  }
-  
-  function processPendingMessages() {
-    if (!peer) return;
-    
-    if (pendingIceCandidates.length > 0) {
-      pendingIceCandidates.forEach(candidate => {
-        console.log('[ICE] Procesando ICE pendiente...');
-        handleIce(candidate);
-      });
-      pendingIceCandidates = [];
-    }
-    
-    if (pendingSdp) {
-      console.log('[SDP] Procesando SDP pendiente...');
-      handleSdp(pendingSdp);
-      pendingSdp = null;
-    }
-  }
 }
 
-// Funciones globales para WebRTC
+// Funciones globales para WebRTC (una sola fuente de verdad)
 function addTracksToPeerGlobal() {
   if (!localStream || !peer) return;
   
