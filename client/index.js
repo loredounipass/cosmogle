@@ -634,19 +634,13 @@ function setupSocketEvents() {
     DOM.spinner.style.display = 'none';
     setAppState(AppState.MATCHED);
     
-    // Create peer first
+    // Create peer connection
     createPeerConnection();
     
-    // Then try to init media (with fallback)
-    safeAsync(async () => {
-      await initMedia();
-      
-      if (STATE.type === 'p1') {
-        setTimer('offer', createOffer, 300);
-      }
-      
+    // If we already have a stream, process pending messages
+    if (STATE.localStream) {
       processPendingMessages();
-    })();
+    }
   });
   
   STATE.socket.on('disconnected', () => {
