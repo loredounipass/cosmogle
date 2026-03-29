@@ -29,7 +29,7 @@ function isMobile() {
 
 // Inicializar la aplicación:  usa tu url de uso o localhost:8000
 async function init() {
-  socket = io('https://upgraded-doodle-jv4j5754g4j3qxqx-8000.app.github.dev');
+  socket = io('https://special-chainsaw-rqr4g6grw55c6qq-8000.app.github.dev');
   setupSocketEvents();
   await initMedia();
   setupUIEvents();

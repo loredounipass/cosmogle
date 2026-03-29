@@ -2,13 +2,28 @@
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const socket_io_1 = require("socket.io");
 const lib_1 = require("./lib");
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
+const allowedOrigins = ((_a = process.env.ALLOWED_ORIGINS) === null || _a === void 0 ? void 0 : _a.split(',')) || ['http://localhost:3000'];
+app.use((0, cors_1.default)({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin)
+            return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST'],
+}));
 const server = app.listen(8000, () => console.log('Server is up, 8000'));
 const io = new socket_io_1.Server(server, {
     cors: {
@@ -40,24 +55,18 @@ io.on('connection', (socket) => {
     });
     // DISCONNECT
     socket.on('disconnect', () => {
-        online--;
-        io.emit('online', online);
-        try {
-            (0, lib_1.handelDisconnect)(socket.id, roomArr, io);
-        }
-        catch (error) {
-            console.error('Error in disconnect handler:', error);
+        (0, lib_1.handelDisconnect)(socket.id, roomArr, io);
+        if (online > 0) {
+            online--;
+            io.emit('online', online);
         }
     });
     // DISCONNECT-ME
     socket.on('disconnect-me', () => {
-        try {
-            (0, lib_1.handelDisconnect)(socket.id, roomArr, io);
+        (0, lib_1.handelDisconnect)(socket.id, roomArr, io);
+        if (online > 0) {
             online--;
             io.emit('online', online);
-        }
-        catch (error) {
-            console.error('Error in disconnect-me handler:', error);
         }
     });
     // NEXT
@@ -107,31 +116,43 @@ io.on('connection', (socket) => {
         }
     });
     // ICE CANDIDATE
-    socket.on('ice:send', ({ candidate }) => {
+    socket.on('ice:send', (data) => {
         try {
+            // Validar que candidate sea un objeto válido
+            if (!data || !data.candidate || typeof data.candidate !== 'object') {
+                socket.emit('error', { message: 'Invalid ICE candidate data' });
+                return;
+            }
             const type = (0, lib_1.getType)(socket.id, roomArr);
             if (type && 'type' in type) {
                 const target = type.type === 'p1' ? type.p2id : type.p1id;
                 if (target)
-                    io.to(target).emit('ice:reply', { candidate, from: socket.id });
+                    io.to(target).emit('ice:reply', { candidate: data.candidate, from: socket.id });
             }
         }
         catch (error) {
             console.error('Error in ice:send handler:', error);
+            socket.emit('error', { message: 'Internal server error' });
         }
     });
     // SDP
-    socket.on('sdp:send', ({ sdp }) => {
+    socket.on('sdp:send', (data) => {
         try {
+            // Validar que sdp sea un objeto válido con type y sdp
+            if (!data || !data.sdp || typeof data.sdp !== 'object' || !data.sdp.type) {
+                socket.emit('error', { message: 'Invalid SDP data' });
+                return;
+            }
             const type = (0, lib_1.getType)(socket.id, roomArr);
             if (type && 'type' in type) {
                 const target = type.type === 'p1' ? type.p2id : type.p1id;
                 if (target)
-                    io.to(target).emit('sdp:reply', { sdp, from: socket.id });
+                    io.to(target).emit('sdp:reply', { sdp: data.sdp, from: socket.id });
             }
         }
         catch (error) {
             console.error('Error in sdp:send handler:', error);
+            socket.emit('error', { message: 'Internal server error' });
         }
     });
     // CHAT
