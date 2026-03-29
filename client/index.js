@@ -1,23 +1,54 @@
 // ============================================
-// APLICACIÓN PRINCIPAL - WebRTC P2P
+// APLICACIÓN PRINCIPAL - WebRTC P2P (Production Ready)
 // ============================================
 
 import { io } from 'socket.io-client';
 
 // ============================================
+// FSM - Finite State Machine
+// ============================================
+const AppState = {
+  IDLE: 'IDLE',
+  CONNECTING: 'CONNECTING',
+  MATCHED: 'MATCHED',
+  NEGOTIATING: 'NEGOTIATING',
+  CONNECTED: 'CONNECTED',
+  RECONNECTING: 'RECONNECTING',
+  DISCONNECTED: 'DISCONNECTED'
+};
+
+// ============================================
 // ESTADO CENTRALIZADO
 // ============================================
 const STATE = {
+  // Core state
+  appState: AppState.IDLE,
+  
+  // Connection
   peer: null,
   localStream: null,
   remoteSocket: null,
   type: null,
   roomid: null,
   socket: null,
+  
+  // Media state
   isCameraOff: false,
+  isMuted: false,
+  
+  // Flow control
   isExiting: false,
+  isNegotiating: false,
+  isReconnecting: false,
+  
+  // Pending messages
   pendingSdp: null,
   pendingIceCandidates: [],
+  
+  // Retry system
+  retryCount: 0,
+  
+  // Media
   videoPlayRetries: 0,
   preferredVideoConstraints: null,
   currentQualityLevel: 'high'
@@ -51,7 +82,6 @@ function clearAllTimers() {
 const CONFIG = {
   SOCKET_URL: 'https://urban-capybara-jv4j5754gpw3qpv6-8000.app.github.dev',
   ICE_CONNECTION_TIMEOUT: 30000,
-  CONNECTION_RETRY_DELAY: 2000,
   MAX_VIDEO_PLAY_RETRIES: 5,
   MAX_RECONNECT_RETRIES: 5,
   STATS_INTERVAL: 5000,
@@ -75,7 +105,8 @@ const DOM = {
   nextBtn: document.getElementById('nextBtn'),
   exitBtn: document.getElementById('exitBtn'),
   spinner: document.querySelector('.modal'),
-  cameraBtn: document.getElementById('cameraBtn')
+  cameraBtn: document.getElementById('cameraBtn'),
+  statusIndicator: null
 };
 
 // ============================================
@@ -91,6 +122,111 @@ function sanitize(text) {
 
 function log(type, msg, data = null) {
   console.log(`[${type}] ${msg}`, data || '');
+}
+
+// ============================================
+// FSM - State Management
+// ============================================
+function setAppState(newState) {
+  const oldState = STATE.appState;
+  STATE.appState = newState;
+  log('FSM', `${oldState} → ${newState}`);
+  
+  // Update UI status indicator
+  updateStatusIndicator(newState);
+}
+
+function canPerformAction(action) {
+  const current = STATE.appState;
+  
+  // Always allowed actions
+  if (action === 'cleanup' || action === 'exit') return true;
+  
+  // Block conflicting actions during certain states
+  if (current === AppState.NEGOTIATING && (action === 'match' || action === 'offer')) {
+    log('FSM', `Blocked: ${action} during ${current}`);
+    return false;
+  }
+  
+  if (current === AppState.RECONNECTING && (action === 'match' || action === 'offer')) {
+    log('FSM', `Blocked: ${action} during ${current}`);
+    return false;
+  }
+  
+  return true;
+}
+
+function updateStatusIndicator(state) {
+  if (!DOM.statusIndicator) return;
+  
+  const statusMap = {
+    [AppState.IDLE]: { text: 'Idle', color: '#666' },
+    [AppState.CONNECTING]: { text: 'Connecting...', color: '#ff9800' },
+    [AppState.MATCHED]: { text: 'Matched!', color: '#4caf50' },
+    [AppState.NEGOTIATING]: { text: 'Negotiating...', color: '#2196f3' },
+    [AppState.CONNECTED]: { text: 'Connected', color: '#4caf50' },
+    [AppState.RECONNECTING]: { text: 'Reconnecting...', color: '#ff9800' },
+    [AppState.DISCONNECTED]: { text: 'Disconnected', color: '#f44336' }
+  };
+  
+  const status = statusMap[state];
+  if (status) {
+    DOM.statusIndicator.textContent = status.text;
+    DOM.statusIndicator.style.color = status.color;
+  }
+}
+
+// ============================================
+// ERROR HANDLING CENTRALIZADO
+// ============================================
+function safeAsync(fn, context) {
+  return (...args) => {
+    try {
+      return fn(...args).catch(e => log('ERROR', context, e));
+    } catch (err) {
+      log('ERROR', `${context} - sync`, err);
+    }
+  };
+}
+
+function handleError(type, error) {
+  log('ERROR', type, error);
+  
+  if (type.includes('ICE') || type.includes('connection')) {
+    if (!STATE.isReconnecting && STATE.retryCount < CONFIG.MAX_RECONNECT_RETRIES) {
+      scheduleReconnect();
+    } else if (STATE.retryCount >= CONFIG.MAX_RECONNECT_RETRIES) {
+      showNotification('Connection failed. Please try again.');
+      STATE.retryCount = 0;
+    }
+  }
+}
+
+// ============================================
+// EXPONENTIAL BACKOFF
+// ============================================
+function getBackoffDelay(retryCount) {
+  // delay = min(1000 * 2^retryCount, 10000)
+  return Math.min(1000 * Math.pow(2, retryCount), 10000);
+}
+
+function scheduleReconnect() {
+  if (STATE.isExiting || STATE.isReconnecting) return;
+  
+  STATE.isReconnecting = true;
+  STATE.retryCount++;
+  
+  const delay = getBackoffDelay(STATE.retryCount);
+  
+  log('RECONNECT', `Attempt ${STATE.retryCount}/${CONFIG.MAX_RECONNECT_RETRIES} in ${delay}ms`);
+  showNotification(`Reconnecting... (${STATE.retryCount}/${CONFIG.MAX_RECONNECT_RETRIES})`);
+  
+  setAppState(AppState.RECONNECTING);
+  
+  setTimer('reconnect', () => {
+    fullCleanup();
+    restartConnection();
+  }, delay);
 }
 
 // ============================================
@@ -165,6 +301,16 @@ function setupVideoListeners() {
   DOM.strangerVideo.onwaiting = () => attemptPlay();
   DOM.strangerVideo.onstalled = () => attemptPlay();
   DOM.strangerVideo.onerror = () => attemptPlay();
+  
+  // Pause video when tab is hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      log('VIDEO', 'Tab hidden - pausing');
+    } else {
+      log('VIDEO', 'Tab visible - resuming');
+      attemptPlay();
+    }
+  });
 }
 
 function attemptPlay() {
@@ -202,6 +348,8 @@ const ICE_SERVERS = [
 ];
 
 function createPeerConnection() {
+  if (!canPerformAction('peer')) return;
+  
   STATE.peer = new RTCPeerConnection({
     iceServers: ICE_SERVERS,
     iceCandidatePoolSize: 20,
@@ -226,34 +374,31 @@ function createPeerConnection() {
   
   // Connection State Handler
   STATE.peer.onconnectionstatechange = () => {
-    log('PEER', `Connection state: ${STATE.peer.connectionState}`);
+    const state = STATE.peer?.connectionState;
+    log('PEER', `Connection state: ${state}`);
     
-    if (STATE.peer.connectionState === 'connected') {
+    if (state === 'connected') {
       clearTimer('iceTimeout');
-    } else if (STATE.peer.connectionState === 'failed') {
-      handleConnectionError('failed');
+      setAppState(AppState.CONNECTED);
+      STATE.isReconnecting = false;
+      STATE.retryCount = 0;
+    } else if (state === 'failed') {
+      handleError('CONNECTION_FAILED', state);
     }
   };
   
-  // ICE Connection State Handler (UNICO)
+  // ICE Connection State Handler
   STATE.peer.oniceconnectionstatechange = () => {
-    log('PEER', `ICE state: ${STATE.peer.iceConnectionState}`);
+    const state = STATE.peer?.iceConnectionState;
+    log('PEER', `ICE state: ${state}`);
     
-    if (STATE.peer.iceConnectionState === 'failed') {
-      handleConnectionError('ice-failed');
+    if (state === 'failed') {
+      handleError('ICE_FAILED', state);
     }
   };
   
-  // Negotiation Handler
-  STATE.peer.onnegotiationneeded = () => {
-    if (STATE.type === 'p1' && STATE.peer.signalingState === 'stable') {
-      createOffer();
-    }
-  };
-  
-  // Add tracks if stream exists - ALWAYS ensure video is enabled
+  // Add tracks if stream exists
   if (STATE.localStream) {
-    // Ensure video tracks are enabled before adding to peer
     STATE.localStream.getVideoTracks().forEach(track => {
       track.enabled = true;
     });
@@ -270,7 +415,7 @@ function createPeerConnection() {
   // Start ICE timeout
   setTimer('iceTimeout', () => {
     if (STATE.peer?.iceConnectionState !== 'connected') {
-      handleConnectionError('ice-timeout');
+      handleError('ICE_TIMEOUT', 'No connection after 30s');
     }
   }, CONFIG.ICE_CONNECTION_TIMEOUT);
   
@@ -296,7 +441,8 @@ function configureBitrate() {
         maxBitrate,
         minBitrate,
         scalabilityMode: 'L1T3',
-        networkPriority: 'high'
+        networkPriority: 'high',
+        degradationPreference: 'maintain-framerate'
       };
     } else if (sender.track.kind === 'audio') {
       params.encodings[0] = {
@@ -316,17 +462,34 @@ function configureBitrate() {
 // SDP HANDLING
 // ============================================
 async function createOffer() {
-  if (!STATE.peer) return;
+  if (!STATE.peer || !canPerformAction('offer')) {
+    log('SDP', 'createOffer blocked');
+    return;
+  }
   
-  const offer = await STATE.peer.createOffer({
-    offerToReceiveAudio: true,
-    offerToReceiveVideo: true
-  });
+  // Prevent race condition - only one offer at a time
+  if (STATE.isNegotiating) {
+    log('SDP', 'Already negotiating, skipping');
+    return;
+  }
   
-  await STATE.peer.setLocalDescription(offer);
-  STATE.socket.emit('sdp:send', { sdp: STATE.peer.localDescription });
+  STATE.isNegotiating = true;
+  setAppState(AppState.NEGOTIATING);
   
-  log('SDP', 'Offer sent');
+  try {
+    const offer = await STATE.peer.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true
+    });
+    
+    await STATE.peer.setLocalDescription(offer);
+    STATE.socket.emit('sdp:send', { sdp: STATE.peer.localDescription });
+    
+    log('SDP', 'Offer sent');
+  } catch (err) {
+    log('ERROR', 'createOffer failed', err);
+    STATE.isNegotiating = false;
+  }
 }
 
 async function handleSdp(sdp) {
@@ -337,13 +500,19 @@ async function handleSdp(sdp) {
     return;
   }
   
-  await STATE.peer.setRemoteDescription(new RTCSessionDescription(sdp));
-  
-  if (STATE.type === 'p2' && sdp.type === 'offer') {
-    const answer = await STATE.peer.createAnswer();
-    await STATE.peer.setLocalDescription(answer);
-    STATE.socket.emit('sdp:send', { sdp: STATE.peer.localDescription });
-    log('SDP', 'Answer sent');
+  try {
+    await STATE.peer.setRemoteDescription(new RTCSessionDescription(sdp));
+    
+    if (STATE.type === 'p2' && sdp.type === 'offer') {
+      const answer = await STATE.peer.createAnswer();
+      await STATE.peer.setLocalDescription(answer);
+      STATE.socket.emit('sdp:send', { sdp: STATE.peer.localDescription });
+      log('SDP', 'Answer sent');
+    }
+    
+    STATE.isNegotiating = false;
+  } catch (err) {
+    log('ERROR', 'handleSdp failed', err);
   }
 }
 
@@ -356,7 +525,6 @@ async function handleIce(candidate) {
     return;
   }
   
-  // Need remote description before adding ICE
   if (!STATE.peer.remoteDescription || !STATE.peer.remoteDescription.type) {
     STATE.pendingIceCandidates.push(candidate);
     return;
@@ -372,13 +540,11 @@ async function handleIce(candidate) {
 function processPendingMessages() {
   if (!STATE.peer) return;
   
-  // Process ICE candidates
   if (STATE.pendingIceCandidates.length > 0) {
     STATE.pendingIceCandidates.forEach(handleIce);
     STATE.pendingIceCandidates = [];
   }
   
-  // Process pending SDP
   if (STATE.pendingSdp) {
     handleSdp(STATE.pendingSdp);
     STATE.pendingSdp = null;
@@ -424,7 +590,7 @@ let lastTime = 0;
 function startStatsMonitoring() {
   if (statsInterval) clearInterval(statsInterval);
   
-  statsInterval = setInterval(async () => {
+  statsInterval = setInterval(safeAsync(async () => {
     if (!STATE.peer || STATE.peer.connectionState === 'closed') return;
     
     const stats = await STATE.peer.getStats();
@@ -454,7 +620,6 @@ function startStatsMonitoring() {
       
       adaptBitrate(bitrate, rtt);
       
-      // Check packet loss
       const lost = videoInbound.packetsLost || 0;
       const total = (videoInbound.packetsReceived || 0) + lost;
       const lossRate = total > 0 ? (lost / total) * 100 : 0;
@@ -466,24 +631,7 @@ function startStatsMonitoring() {
     
     lastBytes = videoInbound.bytesReceived || 0;
     lastTime = now;
-  }, CONFIG.STATS_INTERVAL);
-}
-
-// ============================================
-// CONNECTION ERROR HANDLING
-// ============================================
-function handleConnectionError(type) {
-  log('ERROR', `Connection error: ${type}`);
-  
-  clearTimer('iceTimeout');
-  showNotification('Connection lost. Reconnecting...');
-  
-  setTimer('reconnect', () => {
-    if (!STATE.isExiting) {
-      fullCleanup();
-      restartConnection();
-    }
-  }, CONFIG.CONNECTION_RETRY_DELAY);
+  }, 'STATS'), CONFIG.STATS_INTERVAL);
 }
 
 // ============================================
@@ -503,6 +651,7 @@ function fullCleanup() {
   STATE.pendingSdp = null;
   STATE.pendingIceCandidates = [];
   STATE.currentQualityLevel = 'high';
+  STATE.isNegotiating = false;
   
   if (STATE.peer) {
     STATE.peer.close();
@@ -529,6 +678,7 @@ function restartConnection() {
   STATE.remoteSocket = null;
   STATE.roomid = null;
   STATE.type = null;
+  STATE.isNegotiating = false;
   
   STATE.socket.emit('disconnect-me');
   
@@ -542,7 +692,7 @@ function restartConnection() {
     STATE.socket.emit('start', (newType) => {
       STATE.type = newType;
     });
-  }, CONFIG.CONNECTION_RETRY_DELAY);
+  }, CONFIG.MAX_RECONNECT_RETRIES);
 }
 
 // ============================================
@@ -551,6 +701,7 @@ function restartConnection() {
 function setupSocketEvents() {
   STATE.socket.on('connect', () => {
     log('SOCKET', 'Connected');
+    setAppState(AppState.CONNECTING);
     STATE.socket.emit('start', (personType) => {
       STATE.type = personType;
       log('SOCKET', `My type: ${personType}`);
@@ -563,31 +714,34 @@ function setupSocketEvents() {
   });
   
   STATE.socket.on('remote-socket', (partnerId) => {
+    if (!canPerformAction('match')) return;
+    
     log('SOCKET', `Partner: ${partnerId}`);
     STATE.remoteSocket = partnerId;
     DOM.spinner.style.display = 'none';
+    setAppState(AppState.MATCHED);
     
     // Create peer connection FIRST
     createPeerConnection();
     
     // Then init media
-    initMedia().then(() => {
+    safeAsync(async () => {
+      await initMedia();
+      
       if (STATE.type === 'p1') {
         setTimer('offer', createOffer, 300);
       }
+      
       processPendingMessages();
-    }).catch(() => {
-      if (STATE.type === 'p1') {
-        setTimer('offer', createOffer, 300);
-      }
-    });
+    })();
   });
   
   STATE.socket.on('disconnected', () => {
     if (!STATE.isExiting) {
       showNotification('Disconnected. Searching...');
+      setAppState(AppState.DISCONNECTED);
       fullCleanup();
-      restartConnection();
+      scheduleReconnect();
     }
   });
   
@@ -633,6 +787,8 @@ function setupUIEvents() {
   
   DOM.nextBtn.addEventListener('click', () => {
     fullCleanup();
+    STATE.retryCount = 0;
+    STATE.isReconnecting = false;
     restartConnection();
   });
   
@@ -659,7 +815,6 @@ function setupUIEvents() {
   });
   
   // Mute toggle
-  let isMuted = false;
   const muteBtn = document.getElementById('muteBtn');
   if (muteBtn) {
     muteBtn.addEventListener('click', () => {
@@ -674,13 +829,13 @@ function setupUIEvents() {
         return;
       }
       
-      isMuted = !isMuted;
+      STATE.isMuted = !STATE.isMuted;
       audioTracks.forEach(track => {
-        track.enabled = !isMuted;
+        track.enabled = !STATE.isMuted;
       });
       
-      muteBtn.querySelector('.glitch-text').textContent = isMuted ? 'ON' : 'OFF';
-      showNotification(isMuted ? 'Audio OFF' : 'Audio ON');
+      muteBtn.querySelector('.glitch-text').textContent = STATE.isMuted ? 'ON' : 'OFF';
+      showNotification(STATE.isMuted ? 'Audio OFF' : 'Audio ON');
     });
   }
   
@@ -728,6 +883,8 @@ async function init() {
   STATE.socket = io(CONFIG.SOCKET_URL);
   setupSocketEvents();
   setupUIEvents();
+  
+  setAppState(AppState.CONNECTING);
   
   try {
     await initMedia();
