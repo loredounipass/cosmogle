@@ -10,7 +10,6 @@ import { useNotification } from '../components/video/Notification.jsx';
 import Notification from '../components/video/Notification.jsx';
 import VideoHolder from '../components/video/VideoHolder.jsx';
 import ChatHolder from '../components/video/ChatHolder.jsx';
-import { getStreamTracks } from '../webrtc/media.js';
 
 /**
  * VideoPage — Orquestador principal de la sesión de video.
@@ -95,33 +94,17 @@ export default function VideoPage() {
 
   // ---- HANDLERS ----
   const handleNext = useCallback(() => {
-    // 1. PRIMERO emitir al server (para que encuentre la room y limpie)
+    // 1. Emitir al server ANTES de limpiar (para que encuentre la room)
     try { STATE.socket.emit('next'); } catch (e) {
       console.error('[SOCKET] emit next failed', e);
     }
 
-    // 2. LUEGO limpiar localmente
-    if (STATE.localStream) {
-      const { video } = getStreamTracks(STATE.localStream);
-      video.forEach((track) => {
-        STATE.localStream.removeTrack(track);
-        track.stop();
-      });
-      if (STATE.peer) {
-        STATE.peer.getSenders().forEach((sender) => {
-          if (sender.track?.kind === 'video') {
-            STATE.peer.removeTrack(sender);
-          }
-        });
-      }
-    }
-    STATE.isCameraOff = true;
-    STATE.type = null; // Reset para recibir nuevo tipo del server
-    setCameraBtnText('ON');
-
+    // 2. Limpiar localmente (lightCleanup ya apaga cámara y detiene video tracks)
     webrtc.lightCleanup();
+    STATE.type = null;
     STATE.retryCount = 0;
     STATE.isReconnecting = false;
+    setCameraBtnText('ON');
     setSpinnerVisible(true);
     setAppState(AppState.CONNECTING);
   }, [STATE, webrtc, setAppState]);

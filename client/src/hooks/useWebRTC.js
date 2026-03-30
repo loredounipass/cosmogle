@@ -437,11 +437,13 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     };
 
     STATE.peer.onnegotiationneeded = () => {
-      // Solo el initiator (p1) crea el offer.
-      // p2 espera el offer de p1 y responde con answer.
-      // Esto evita el "SDP glare" (colisión donde ambos envían offer al mismo tiempo).
       const isInitiator = STATE.type === 'p1';
-      if (STATE.peer.signalingState === 'stable' && isInitiator) {
+      const isConnected = STATE.peer.connectionState === 'connected';
+
+      // Conexión inicial: solo p1 crea el offer (evita SDP glare).
+      // Renegociación (ej: cámara ON): cualquier peer puede crear offer
+      // porque la conexión ya está estable y solo un lado modifica tracks.
+      if (STATE.peer.signalingState === 'stable' && (isInitiator || isConnected)) {
         createOffer();
       }
     };
@@ -517,6 +519,16 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     STATE.pendingIceCandidates = [];
     STATE.currentQualityLevel = 'high';
     STATE.isNegotiating = false;
+    STATE._iceRestartAttempted = false;
+
+    // Apagar cámara: detener y remover video tracks del stream local
+    if (STATE.localStream) {
+      STATE.localStream.getVideoTracks().forEach((track) => {
+        track.stop();
+        STATE.localStream.removeTrack(track);
+      });
+    }
+    STATE.isCameraOff = true;
 
     if (STATE.peer) {
       try { STATE.peer.onicecandidate = null; } catch (e) {}
