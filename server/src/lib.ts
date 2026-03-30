@@ -1,312 +1,302 @@
 import { v4 as uuidv4 } from 'uuid';
-import { GetTypesResult, room } from './types';
+import type { Server, Socket } from 'socket.io';
+import type { Room, PeerRole, PeerInfo, GetTypesResult } from './types';
 
-// Grace timers for disconnected clients (roomid -> timeout)
-const cleanupTimers: Map<string, NodeJS.Timeout> = new Map();
+// ============================================
+// ROOM MANAGER — Gestión centralizada de salas
+// ============================================
 
-// Cola de espera de sockets que buscan pareja
-const waitingQueue: Set<string> = new Set();
+/** Map<roomId, Room> — O(1) lookup */
+const rooms = new Map<string, Room>();
 
-export function addToWaitingQueue(socketId: string): void {
-  waitingQueue.add(socketId);
-  console.log('[SERVER] Añadido a waitingQueue:', socketId, 'Total:', waitingQueue.size);
+/** Map<socketId, roomId> — reverse index para encontrar la room de un socket en O(1) */
+const socketToRoom = new Map<string, string>();
+
+/** Cola de sockets buscando pareja — FIFO estricta */
+const waitingQueue: string[] = [];
+
+// ============================================
+// HELPERS
+// ============================================
+
+function log(tag: string, msg: string, data?: any) {
+  console.log(`[${tag}] ${msg}`, data !== undefined ? data : '');
 }
 
+/** Verifica si un socket sigue conectado al server */
+function isSocketAlive(io: Server, socketId: string): boolean {
+  return io.sockets.sockets.has(socketId);
+}
+
+/** Limpia sockets muertos de la waitingQueue */
+function pruneWaitingQueue(io: Server): void {
+  for (let i = waitingQueue.length - 1; i >= 0; i--) {
+    if (!isSocketAlive(io, waitingQueue[i])) {
+      log('QUEUE', 'Pruned dead socket from waiting queue', waitingQueue[i]);
+      waitingQueue.splice(i, 1);
+    }
+  }
+}
+
+/** Agrega un socket a la cola de espera (si no está ya) */
+function addToWaitingQueue(socketId: string): void {
+  if (!waitingQueue.includes(socketId)) {
+    waitingQueue.push(socketId);
+    log('QUEUE', `Added ${socketId}. Queue size: ${waitingQueue.length}`);
+  }
+}
+
+/** Elimina un socket de la cola de espera */
 export function removeFromWaitingQueue(socketId: string): void {
-  waitingQueue.delete(socketId);
-  console.log('[SERVER] Eliminado de waitingQueue:', socketId, 'Total:', waitingQueue.size);
+  const idx = waitingQueue.indexOf(socketId);
+  if (idx !== -1) {
+    waitingQueue.splice(idx, 1);
+    log('QUEUE', `Removed ${socketId}. Queue size: ${waitingQueue.length}`);
+  }
 }
 
-export function getFirstInWaitingQueue(): string | null {
-  for (const socketId of waitingQueue) {
-    return socketId;
+/** Toma el primer socket válido de la cola */
+function takeFromWaitingQueue(io: Server, excludeId?: string): string | null {
+  pruneWaitingQueue(io);
+  for (let i = 0; i < waitingQueue.length; i++) {
+    const id = waitingQueue[i];
+    if (id !== excludeId && isSocketAlive(io, id)) {
+      waitingQueue.splice(i, 1);
+      return id;
+    }
   }
   return null;
 }
 
-export function getWaitingQueueSize(): number {
-  return waitingQueue.size;
+// ============================================
+// ROOM OPERATIONS
+// ============================================
+
+function createRoom(socketId: string, clientId: string | null): Room {
+  const roomId = uuidv4();
+  const room: Room = {
+    roomId,
+    p1: { socketId, clientId },
+    p2: null,
+    createdAt: Date.now(),
+  };
+  rooms.set(roomId, room);
+  socketToRoom.set(socketId, roomId);
+  log('ROOM', `Created room ${roomId} with p1=${socketId}`);
+  return room;
 }
 
-export function markRoomAsWaiting(roomArr: Array<room>, socketId: string): void {
-  for (const r of roomArr) {
-    if (r.p1.id === socketId || r.p2.id === socketId) {
-      if (!r.hasWaiting) {
-        r.hasWaiting = true;
-        const waitingId = r.p1.id === socketId ? r.p2.id : r.p1.id;
-        if (waitingId) {
-          addToWaitingQueue(waitingId);
-        }
-      }
-      break;
-    }
-  }
+function destroyRoom(roomId: string): void {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  if (room.p1) socketToRoom.delete(room.p1.socketId);
+  if (room.p2) socketToRoom.delete(room.p2.socketId);
+  rooms.delete(roomId);
+  log('ROOM', `Destroyed room ${roomId}`);
 }
 
-export function handelStart(roomArr: Array<room>, socket: any, clientId: string | undefined, cb: Function, io: any): void {
-  console.log('[SERVER] Nueva conexión start:', socket.id, 'clientId:', clientId);
-  
-  // Primero intentar recuperar sala previa
-  const recovered = tryRecoverRoom(clientId);
-  if (recovered) {
-    removeFromWaitingQueue(socket.id);
-    cb(recovered.role);
-    if (recovered.partnerId) {
-      console.log('[SERVER] emit remote-socket -> to', recovered.partnerId, 'with', socket.id);
-      io.to(recovered.partnerId).emit('remote-socket', socket.id);
-      console.log('[SERVER] emit remote-socket -> to', socket.id, 'with', recovered.partnerId);
-      socket.emit('remote-socket', recovered.partnerId);
-    }
-    return;
-  }
+function getRoomBySocket(socketId: string): Room | null {
+  const roomId = socketToRoom.get(socketId);
+  if (!roomId) return null;
+  return rooms.get(roomId) || null;
+}
 
-  // Verificar si hay una sala con alguien esperando (hasWaiting)
-  const roomWithWaiting = findRoomWithWaiting();
-  
-  if (roomWithWaiting) {
-    // Emparejar con la sala que tiene alguien esperando
-    const waitingSocket = io.sockets.sockets.get(roomWithWaiting.waitingSocketId);
-    if (waitingSocket) {
-      removeFromWaitingQueue(roomWithWaiting.waitingSocketId);
-      roomWithWaiting.room.hasWaiting = false;
-      
-      socket.join(roomWithWaiting.room.roomid);
-      waitingSocket.join(roomWithWaiting.room.roomid);
-      
-      roomWithWaiting.room.p2.id = socket.id;
-      roomWithWaiting.room.p2.clientId = clientId || null;
-      roomWithWaiting.room.isAvailable = false;
-      roomWithWaiting.room.lastSeen = Date.now();
-      
-      cb('p2');
-      waitingSocket.emit('start', 'p1');
-      
-      console.log('[SERVER] emit remote-socket -> to', roomWithWaiting.waitingSocketId, socket.id);
-      io.to(roomWithWaiting.waitingSocketId).emit('remote-socket', socket.id);
-      console.log('[SERVER] emit remote-socket -> to', socket.id, roomWithWaiting.waitingSocketId);
-      socket.emit('remote-socket', roomWithWaiting.waitingSocketId);
-      
-      console.log('[SERVER] emit roomid -> to', socket.id, roomWithWaiting.room.roomid);
-      socket.emit('roomid', roomWithWaiting.room.roomid);
-      
-      console.log('[SERVER] Emparejados:', roomWithWaiting.waitingSocketId, '<->', socket.id);
-      return;
-    }
-  }
+function getRoleInRoom(socketId: string, room: Room): PeerRole | null {
+  if (room.p1?.socketId === socketId) return 'p1';
+  if (room.p2?.socketId === socketId) return 'p2';
+  return null;
+}
 
-  // Buscar sala disponible (sin waiting)
-  const availableroom = checkAvailableRoom();
-  if (availableroom.is) {
-    console.log('[SERVER] Sala disponible:', availableroom.roomid);
-    socket.join(availableroom.roomid);
+function getPartnerInRoom(socketId: string, room: Room): string | null {
+  if (room.p1?.socketId === socketId) return room.p2?.socketId || null;
+  if (room.p2?.socketId === socketId) return room.p1?.socketId || null;
+  return null;
+}
+
+// ============================================
+// MATCHMAKING
+// ============================================
+
+function matchPeers(io: Server, socket1: Socket, socket2: Socket, s1ClientId: string | null, s2ClientId: string | null): Room {
+  const room = createRoom(socket1.id, s1ClientId);
+  room.p2 = { socketId: socket2.id, clientId: s2ClientId };
+  socketToRoom.set(socket2.id, room.roomId);
+
+  // Ambos se unen a la room de Socket.IO
+  socket1.join(room.roomId);
+  socket2.join(room.roomId);
+
+  // Enviar roomid a AMBOS peers
+  socket1.emit('roomid', room.roomId);
+  socket2.emit('roomid', room.roomId);
+
+  // Enviar remote-socket a ambos
+  socket1.emit('remote-socket', socket2.id);
+  socket2.emit('remote-socket', socket1.id);
+
+  log('MATCH', `Paired ${socket1.id} (p1) <-> ${socket2.id} (p2) in room ${room.roomId}`);
+  return room;
+}
+
+// ============================================
+// PUBLIC API
+// ============================================
+
+/**
+ * handelStart — Maneja el evento `start` de un cliente.
+ * 
+ * Flujo:
+ * 1. Limpiar rooms previas del socket (si refresh)
+ * 2. Buscar alguien en la waitingQueue
+ * 3. Si hay match → emparejar inmediatamente
+ * 4. Si no → crear room y esperar en la cola
+ */
+export function handelStart(
+  _roomArr: Room[], // deprecated — usamos el Map interno
+  socket: Socket,
+  clientId: string | undefined,
+  cb: (role: PeerRole) => void,
+  io: Server
+): void {
+  const cid = clientId || null;
+  log('START', `Socket ${socket.id} requesting start, clientId=${cid}`);
+
+  // 1. Limpiar cualquier room previa de este socket (por si recargó la página)
+  cleanupSocket(socket.id, io, true);
+
+  // 2. Buscar alguien esperando en la cola
+  const waitingId = takeFromWaitingQueue(io, socket.id);
+
+  if (waitingId) {
+    // 3a. HAY alguien esperando → match inmediato
+    const waitingSocket = io.sockets.sockets.get(waitingId);
+    if (!waitingSocket) {
+      // Socket murió entre el queue y ahora — volver a intentar
+      log('START', `Waiting socket ${waitingId} died, retrying...`);
+      return handelStart(_roomArr, socket, clientId, cb, io);
+    }
+
+    const room = matchPeers(io, waitingSocket, socket, null, cid);
+
+    // p1 (el que esperaba) ya tiene su callback ejecutado cuando entró a la cola
+    // p2 (el nuevo) recibe su rol ahora
     cb('p2');
-    closeRoom(availableroom.roomid);
-    if (availableroom?.room) {
-      console.log('[SERVER] Enviando remote-socket a p1:', availableroom.room.p1.id, 'nuevo p2:', socket.id);
-      console.log('[SERVER] emit remote-socket -> to', availableroom.room.p1.id, socket.id);
-      io.to(availableroom.room.p1.id).emit('remote-socket', socket.id);
-      console.log('[SERVER] emit remote-socket -> to', socket.id, availableroom.room.p1.id);
-      socket.emit('remote-socket', availableroom.room.p1.id);
-      console.log('[SERVER] emit roomid -> to', socket.id, availableroom.room.roomid);
-      socket.emit('roomid', availableroom.room.roomid);
-    }
+
+    log('START', `Matched ${waitingId} (p1) with ${socket.id} (p2)`);
   } else {
-    // Crear nueva sala sin waiting (el primer usuario espera hasta que alguien se una)
-    createNewRoom(false);
-  }
+    // 3b. Nadie esperando → crear room y entrar a la cola
+    const room = createRoom(socket.id, cid);
+    socket.join(room.roomId);
+    socket.emit('roomid', room.roomId);
 
-  function createNewRoom(withWaiting: boolean = false): void {
-    let roomid = uuidv4();
-    socket.join(roomid);
-    roomArr.push({
-      roomid,
-      isAvailable: true,
-      hasWaiting: withWaiting,
-      p1: { id: socket.id, clientId: clientId || null },
-      p2: { id: null, clientId: null },
-      lastSeen: Date.now()
-    });
-    if (withWaiting) {
-      addToWaitingQueue(socket.id);
-    }
     cb('p1');
-    socket.emit('roomid', roomid);
-  }
+    addToWaitingQueue(socket.id);
 
-  function findRoomWithWaiting(): { room: room, waitingSocketId: string } | null {
-    for (const waitingSocketId of waitingQueue) {
-      for (const r of roomArr) {
-        if (r.hasWaiting && r.p1.id === waitingSocketId) {
-          return { room: r, waitingSocketId };
-        }
-      }
-    }
-    return null;
-  }
-
-  function closeRoom(roomid: string): void {
-    for (let i = 0; i < roomArr.length; i++) {
-      if (roomArr[i].roomid == roomid) {
-        roomArr[i].isAvailable = false;
-        roomArr[i].p2.id = socket.id;
-        roomArr[i].p2.clientId = clientId || null;
-        break;
-      }
-    }
-  }
-
-  function checkAvailableRoom(): { is: boolean, roomid: string, room: room | null } {
-    for (let i = 0; i < roomArr.length; i++) {
-      const currentRoom = roomArr[i];
-      if (currentRoom.isAvailable && currentRoom.p1.id !== socket.id) {
-        return { is: true, roomid: currentRoom.roomid, room: currentRoom };
-      }
-    }
-    return { is: false, roomid: '', room: null };
-  }
-
-  function tryRecoverRoom(clientId: string | undefined): { role: string, partnerId?: string | null } | false {
-    if (!clientId) return false;
-    for (let i = 0; i < roomArr.length; i++) {
-      const r = roomArr[i];
-      if (r.p1.clientId === clientId) {
-        r.p1.id = socket.id;
-        r.lastSeen = undefined;
-        if (cleanupTimers.has(r.roomid)) {
-          clearTimeout(cleanupTimers.get(r.roomid)!);
-          cleanupTimers.delete(r.roomid);
-        }
-        socket.join(r.roomid);
-        return { role: 'p1', partnerId: r.p2.id };
-      }
-      if (r.p2.clientId === clientId) {
-        r.p2.id = socket.id;
-        r.lastSeen = undefined;
-        if (cleanupTimers.has(r.roomid)) {
-          clearTimeout(cleanupTimers.get(r.roomid)!);
-          cleanupTimers.delete(r.roomid);
-        }
-        socket.join(r.roomid);
-        return { role: 'p2', partnerId: r.p1.id };
-      }
-    }
-    return false;
+    log('START', `${socket.id} waiting as p1 in room ${room.roomId}`);
   }
 }
 
-export function handelDisconnect(disconnectedId: string, roomArr: Array<room>, io: any, forceCleanup: boolean = false) {
-  // If forceCleanup is true, immediately remove the room entries for this socket.
-  for (let i = 0; i < roomArr.length; i++) {
-    const room = roomArr[i];
+/**
+ * handelDisconnect — Maneja desconexión de un peer.
+ * 
+ * 1. Notifica al partner
+ * 2. Limpia la room
+ * 3. El partner se mete en waitingQueue para ser re-emparejado
+ */
+export function handelDisconnect(
+  disconnectedId: string,
+  _roomArr: Room[], // deprecated
+  io: Server,
+  forceCleanup: boolean = false
+): void {
+  cleanupSocket(disconnectedId, io, forceCleanup);
+}
 
-    if (room.p1.id === disconnectedId || room.p2?.id === disconnectedId) {
-      const isP1 = room.p1.id === disconnectedId;
-      const partner = isP1 ? room.p2?.id : room.p1?.id;
-      if (partner) io.to(partner).emit('disconnected');
+/**
+ * cleanupSocket — Limpia todas las rooms y colas asociadas a un socket.
+ */
+function cleanupSocket(socketId: string, io: Server, notifyPartner: boolean = true): void {
+  removeFromWaitingQueue(socketId);
 
-      // Verificar si hay alguien en la cola de espera para reconectar automáticamente
-      if (!forceCleanup && waitingQueue.size > 0) {
-        const waitingId = getFirstInWaitingQueue();
-        if (waitingId && waitingId !== partner) {
-          const waitingSocket = io.sockets.sockets.get(waitingId);
-          if (waitingSocket) {
-            removeFromWaitingQueue(waitingId);
-            
-            // El usuario que queda (partner) se convierte en p1
-            room.p1.id = partner;
-            room.p2.id = waitingId;
-            room.p2.clientId = waitingSocket.clientId || null;
-            room.isAvailable = false;
-            room.lastSeen = Date.now();
-            
-            waitingSocket.join(room.roomid);
-            waitingSocket.emit('start', 'p2');
-            io.to(waitingId).emit('remote-socket', partner);
-            io.to(partner).emit('remote-socket', waitingId);
-            waitingSocket.emit('roomid', room.roomid);
-            
-            console.log('[SERVER] Reconectado automáticamente:', partner, '<->', waitingId);
-            return;
-          }
-        }
-      }
+  const room = getRoomBySocket(socketId);
+  if (!room) return;
 
-      if (forceCleanup) {
-        // Remove the socket id and cleanup the room immediately.
-        if (isP1) {
-          room.p1.id = null;
-        } else {
-          room.p2.id = null;
-        }
+  const partnerId = getPartnerInRoom(socketId, room);
 
-        // Clear any pending cleanup timer for this room
-        if (cleanupTimers.has(room.roomid)) {
-          clearTimeout(cleanupTimers.get(room.roomid)!);
-          cleanupTimers.delete(room.roomid);
-        }
+  // Notificar al partner si corresponde
+  if (notifyPartner && partnerId && isSocketAlive(io, partnerId)) {
+    io.to(partnerId).emit('disconnected');
+    log('CLEANUP', `Notified partner ${partnerId} about ${socketId} leaving`);
+  }
 
-        // If both sides are gone or nobody has clientId, remove room
-        if ((!room.p1.id && !room.p2?.id) || (room.p1.id === null && !room.p1.clientId && !room.p2?.id)) {
-          roomArr.splice(i, 1);
-          i--; // adjust index after removal
-        } else {
-          room.isAvailable = true;
-          room.hasWaiting = false;
-        }
+  // Quitar al partner de la room y destruirla
+  if (partnerId) {
+    socketToRoom.delete(partnerId);
+    // El partner vuelve a la cola de espera
+    if (isSocketAlive(io, partnerId)) {
+      addToWaitingQueue(partnerId);
+    }
+  }
 
-        continue;
-      }
+  // Destruir la room completa
+  destroyRoom(room.roomId);
+}
 
-      // Non-forced path: keep the room for a grace period so client can reconnect
-      // set id to null but preserve clientId and mark lastSeen
-      if (isP1) {
-        room.p1.id = null;
-        room.lastSeen = Date.now();
-        // El que queda (partner) queda esperando
-        if (partner) {
-          room.hasWaiting = true;
-          addToWaitingQueue(partner);
-        }
-      } else {
-        room.p2.id = null;
-        room.lastSeen = Date.now();
-        // El que queda (p1) queda esperando
-        if (room.p1.id) {
-          room.hasWaiting = true;
-          addToWaitingQueue(room.p1.id);
-        }
-      }
+/**
+ * getType — Retorna el tipo (p1/p2) y el partnerId de un socket.
+ * Usado para routear SDP/ICE al peer correcto.
+ */
+export function getType(socketId: string, _roomArr: Room[]): GetTypesResult {
+  const room = getRoomBySocket(socketId);
+  if (!room) return false;
 
-      // schedule actual cleanup after 30 seconds
-      if (!cleanupTimers.has(room.roomid)) {
-        const t = setTimeout(() => {
-          // remove room if still empty or only one without clientId
-          const idx = roomArr.findIndex(r => r.roomid === room.roomid);
-          if (idx !== -1) {
-            const rcur = roomArr[idx];
-            if ((!rcur.p1.id && !rcur.p2?.id) || (rcur.p1.id === null && !rcur.p1.clientId && !rcur.p2?.id)) {
-              roomArr.splice(idx, 1);
-            } else {
-              // make available if partner remains
-              rcur.isAvailable = true;
-              rcur.hasWaiting = false;
-            }
-          }
-          cleanupTimers.delete(room.roomid);
-        }, 30000);
-        cleanupTimers.set(room.roomid, t);
+  const role = getRoleInRoom(socketId, room);
+  if (!role) return false;
+
+  const partnerId = getPartnerInRoom(socketId, room);
+  return { type: role, partnerId, roomId: room.roomId };
+}
+
+/**
+ * markRoomAsWaiting — Ya no necesario con la nueva arquitectura.
+ * Se mantiene como stub para compatibilidad.
+ */
+export function markRoomAsWaiting(_roomArr: Room[], socketId: string): void {
+  // No-op: la nueva lógica maneja waiting automáticamente
+}
+
+// ============================================
+// PERIODIC CLEANUP — Limpieza de rooms zombie
+// ============================================
+
+const ZOMBIE_ROOM_TIMEOUT = 60_000; // 60 segundos
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [roomId, room] of rooms) {
+    const hasP1 = room.p1 !== null;
+    const hasP2 = room.p2 !== null;
+
+    // Room vacía = zombie
+    if (!hasP1 && !hasP2) {
+      destroyRoom(roomId);
+      continue;
+    }
+
+    // Room vieja con solo un peer que ya no está en la cola = zombie
+    if (now - room.createdAt > ZOMBIE_ROOM_TIMEOUT) {
+      if (hasP1 && !hasP2 && !waitingQueue.includes(room.p1!.socketId)) {
+        destroyRoom(roomId);
       }
     }
   }
-}
+}, 30_000);
 
-export function getType(id: string, roomArr: Array<room>): GetTypesResult {
-  for (let i = 0; i < roomArr.length; i++) {
-    if (roomArr[i].p1.id == id) {
-      return { type: 'p1', p2id: roomArr[i].p2.id };
-    } else if (roomArr[i].p2.id == id) {
-      return { type: 'p2', p1id: roomArr[i].p1.id };
-    }
-  }
-  return false;
-}
+// ============================================
+// DEBUG — Logs de estado cada 30 segundos
+// ============================================
+
+setInterval(() => {
+  log('STATE', `Rooms: ${rooms.size}, WaitingQueue: ${waitingQueue.length}, SocketMap: ${socketToRoom.size}`);
+}, 30_000);

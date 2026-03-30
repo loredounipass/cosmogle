@@ -1,19 +1,27 @@
-export interface room {
-  roomid: string,
-  isAvailable: boolean,
-  hasWaiting: boolean,
-  p1: {
-    id: string | null,
-    clientId?: string | null
-  },
-  p2: {
-    id: string | null,
-    clientId?: string | null
-  },
-  lastSeen?: number
+// ============================================
+// TYPES — Strangers Server
+// ============================================
+
+export interface Peer {
+  socketId: string;
+  clientId: string | null;
 }
 
-export type GetTypesResult = 
-| { type: 'p1', p2id: string | null }
-| { type: 'p2', p1id: string | null }
-| false;
+export interface Room {
+  roomId: string;
+  p1: Peer | null;
+  p2: Peer | null;
+  createdAt: number;
+}
+
+export type PeerRole = 'p1' | 'p2';
+
+export interface PeerInfo {
+  role: PeerRole;
+  partnerId: string | null;
+  roomId: string;
+}
+
+export type GetTypesResult =
+  | { type: PeerRole; partnerId: string | null; roomId: string }
+  | false;
