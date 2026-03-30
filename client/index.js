@@ -80,7 +80,7 @@ function clearAllTimers() {
 // CONFIGURACIÓN
 // ============================================
 const CONFIG = {
-  SOCKET_URL: 'https://urban-capybara-jv4j5754gpw3qpv6-8000.app.github.dev',
+  SOCKET_URL: 'https://silver-guide-rqr4g6grrjgcqrv-8000.app.github.dev',
   ICE_CONNECTION_TIMEOUT: 30000,
   // Increase ICE timeout to allow slower networks / TURN allocation
   // Note: server-side TURN reliability needed for cross-network tests
@@ -905,6 +905,26 @@ function setupUIEvents() {
   });
   
   DOM.nextBtn.addEventListener('click', () => {
+    // Turn off camera before finding new partner
+    if (STATE.localStream) {
+      const { video } = getStreamTracks(STATE.localStream);
+      video.forEach(track => {
+        STATE.localStream.removeTrack(track);
+        track.stop();
+      });
+      if (STATE.peer) {
+        STATE.peer.getSenders().forEach(sender => {
+          if (sender.track?.kind === 'video') {
+            STATE.peer.removeTrack(sender);
+          }
+        });
+      }
+    }
+    STATE.isCameraOff = true;
+    if (DOM.cameraBtn) {
+      DOM.cameraBtn.querySelector('.glitch-text').textContent = 'ON';
+    }
+
     // For 'Next' we want to keep local media and just ask server for a new partner
     lightCleanup();
     STATE.retryCount = 0;
