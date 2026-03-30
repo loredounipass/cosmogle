@@ -53,6 +53,8 @@ export function useSocket({
 
     STATE.socket.on('remote-socket', (partnerId) => {
       if (!canPerformAction('match')) return;
+      // Guarda: si ya tenemos peer activo, ignorar el evento duplicado
+      if (STATE.peer) return;
 
       console.log(`[SOCKET] Partner: ${partnerId}`);
       STATE.remoteSocket = partnerId;

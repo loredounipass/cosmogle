@@ -35,10 +35,24 @@ app.get('/ice', (req, res) => {
     { urls: 'stun:stun1.l.google.com:19302' }
   ];
 
-  if (process.env.TURN_URL && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
-    servers.push({ urls: process.env.TURN_URL, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL });
+  const turnUrl      = process.env.TURN_URL;
+  const turnUser     = process.env.TURN_USERNAME;
+  const turnCred     = process.env.TURN_CREDENTIAL;
+
+  if (turnUrl && turnUser && turnCred) {
+    // Extraer host del TURN_URL (ej: "turn:openrelay.metered.ca:80" → "openrelay.metered.ca")
+    const hostMatch = turnUrl.match(/turn:([^:]+)/);
+    const host = hostMatch ? hostMatch[1] : null;
+
+    if (host) {
+      // Múltiples puertos para mayor compatibilidad con firewalls
+      servers.push({ urls: `turn:${host}:80`,                    username: turnUser, credential: turnCred });
+      servers.push({ urls: `turn:${host}:443`,                   username: turnUser, credential: turnCred });
+      servers.push({ urls: `turn:${host}:443?transport=tcp`,     username: turnUser, credential: turnCred });
+    } else {
+      servers.push({ urls: turnUrl, username: turnUser, credential: turnCred });
+    }
   }
-  // No public TURN URL handling — only credentialed TURN via TURN_URL/TURN_USERNAME/TURN_CREDENTIAL
 
   console.log('[ICE] returning ICE servers:', servers);
   res.json({ servers });

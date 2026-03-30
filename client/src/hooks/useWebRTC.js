@@ -32,19 +32,29 @@ function createTimerManager() {
 // ICE SERVERS
 // ============================================
 const ICE_SERVERS = [
+  // ── STUN
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.stunprotocol.org:3478' },
-  { urls: 'turn:turn.bistriz.com:80', username: 'homeo', credential: 'homeo' },
-  { urls: 'turn:turn.bistriz.com:443', username: 'homeo', credential: 'homeo' },
+
+  // ── Open Relay (Metered) — UDP + TCP + TLS para atravesar cualquier firewall
+  { urls: 'turn:openrelay.metered.ca:80',                username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:3478',              username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:3478?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turns:openrelay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
+
+  // ── Freestun — proveedor de backup
+  { urls: 'turn:freestun.net:3478',  username: 'free', credential: 'free' },
+  { urls: 'turns:freestun.net:5349', username: 'free', credential: 'free' },
 ];
+
 
 const CONFIG = {
   SOCKET_URL: 'https://silver-guide-rqr4g6grrjgcqrv-8000.app.github.dev',
-  ICE_CONNECTION_TIMEOUT: 60000,
+  ICE_CONNECTION_TIMEOUT: 30000, // 30s — 60s era demasiado esperar
   STATS_INTERVAL: 5000,
   QUALITY: {
     high:   { maxBitrate: 5000000, minBitrate: 1500000 },
@@ -75,6 +85,27 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
   function handleError(type, error) {
     log('ERROR', type, error);
     if (type.includes('ICE') || type.includes('connection')) {
+      // Intentar ICE restart una vez antes de rendirse
+      if (!STATE._iceRestartAttempted && STATE.peer && STATE.peer.connectionState !== 'closed') {
+        STATE._iceRestartAttempted = true;
+        log('ICE', 'Attempting ICE restart...');
+        showNotification('Reconnecting...');
+        try {
+          STATE.peer.restartIce();
+          // Solo p1 renegocia con offer tras ICE restart
+          if (STATE.type === 'p1') {
+            STATE.isNegotiating = false;
+            createOffer();
+          }
+          return; // no mostrar error aún, esperar resultado del restart
+        } catch (e) {
+          log('ICE', 'ICE restart failed', e);
+        }
+      }
+
+      // Si ya se intentó ICE restart o falló, mostrar error
+      STATE._iceRestartAttempted = false;
+      setSpinnerVisible(true);
       showNotification('Connection failed. Press NEXT to try again.');
       STATE.retryCount = 0;
     }
@@ -382,6 +413,7 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
         setAppState(AppState.CONNECTED);
         STATE.isReconnecting = false;
         STATE.retryCount = 0;
+        STATE._iceRestartAttempted = false; // reset para futuras reconexiones
       } else if (pState === 'failed') {
         handleError('CONNECTION_FAILED', pState);
       }
@@ -390,13 +422,27 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     STATE.peer.oniceconnectionstatechange = () => {
       const pState = STATE.peer?.iceConnectionState;
       log('PEER', `ICE state: ${pState}`);
-      if (pState === 'failed' || pState === 'disconnected') {
+      if (pState === 'failed') {
         handleError('ICE_FAILED', pState);
+      } else if (pState === 'disconnected') {
+        // 'disconnected' puede ser transitorio — esperamos 4s antes de notificar
+        timers.setTimer('iceDisconnect', () => {
+          if (STATE.peer?.iceConnectionState === 'disconnected') {
+            handleError('ICE_FAILED', 'disconnected');
+          }
+        }, 4000);
+      } else if (pState === 'connected') {
+        // Si se recupera, cancelar el timer de disconnection
+        timers.clearTimer('iceDisconnect');
       }
     };
 
     STATE.peer.onnegotiationneeded = () => {
-      if (STATE.peer.signalingState === 'stable') {
+      // Solo el initiator (p1) crea el offer.
+      // p2 espera el offer de p1 y responde con answer.
+      // Esto evita el "SDP glare" (colisión donde ambos envían offer al mismo tiempo).
+      const isInitiator = STATE.type === 'p1';
+      if (STATE.peer.signalingState === 'stable' && isInitiator) {
         createOffer();
       }
     };
