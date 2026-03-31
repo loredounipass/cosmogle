@@ -459,41 +459,68 @@
   /* Notification toast */
   .notification {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(40, 40, 45, 0.95);
+    top: 20px;
+    left: 20px;
+    background-color: rgba(40, 40, 45, 0.85);
     color: #ffffff;
-    padding: 12px 24px;
-    border-radius: 30px;
+    padding: 15px 25px;
+    border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    border-left: 4px solid #4facfe;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     font-size: 14px;
     font-weight: 500;
-    z-index: 3000;
-    animation: fadeIn 0.5s ease-in-out, fadeOut 0.5s ease-in-out 4.5s;
-    text-align: center;
-    min-width: 120px;
-    max-width: 300px;
+    z-index: 9999;
+    animation: slideInLeft 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards, slideOutLeft 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) 4.5s forwards;
+    text-align: left;
+    min-width: 200px;
+    max-width: 350px;
     width: auto;
     white-space: normal;
     word-wrap: break-word;
     pointer-events: none;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(15px);
   }
 
-  @media only screen and (min-width: 601px) {
-    .notification {
-      position: fixed;
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-120%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideOutLeft {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(-120%);
+      opacity: 0;
     }
   }
 
   @media only screen and (max-width: 600px) {
     .notification {
-      position: fixed !important;
-      top: 20% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) !important;
+      top: 15px;
+      right: 15px;
+      left: 15px; /* Take full width on mobile with margins */
+      max-width: none;
+      animation: slideInTop 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards, slideOutTop 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) 4.5s forwards;
+    }
+
+    @keyframes slideInTop {
+      from { transform: translateY(-120%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes slideOutTop {
+      from { transform: translateY(0); opacity: 1; }
+      to { transform: translateY(-120%); opacity: 0; }
     }
   }
 
