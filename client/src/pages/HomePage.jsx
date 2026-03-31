@@ -4,7 +4,7 @@ export default function HomePage() {
   const navigate = useNavigate();
 
   function handleStart() {
-    navigate('/video');
+    navigate('/checking');
   }
 
   return (
