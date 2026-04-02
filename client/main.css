@@ -241,13 +241,13 @@
   /* Start button on index page */
   .btn-start {
     @apply font-bold cursor-pointer;
-    padding: 15px 40px;
-    font-size: 18px;
+    padding: 12px 30px;
+    font-size: 15px;
     color: #ffffff;
     border: none;
     border-radius: 30px;
     background: linear-gradient(135deg, #4facfe 0%, #a18cd1 100%);
-    min-width: 200px;
+    min-width: 180px;
     transition: all 0.3s ease;
     box-shadow: 0 8px 20px rgba(79, 172, 254, 0.4);
     letter-spacing: 1px;
