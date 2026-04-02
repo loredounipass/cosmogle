@@ -80,7 +80,7 @@
   /* ── NAVBAR ── */
   .index-navbar {
     @apply w-full flex justify-center z-50;
-    padding: 2px 0;
+    padding: 15px 0;
     background: rgba(15, 16, 21, 0.6);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -89,8 +89,29 @@
   .navbar-container {
     @apply flex items-center justify-between w-full px-6;
     max-width: 1200px;
-    padding-top: 2px;
-    padding-bottom: 2px;
+  }
+
+  .navbar-logo {
+    @apply flex items-center text-white no-underline font-bold text-xl;
+  }
+
+  .navbar-logo img {
+    height: 70px;
+    width: auto;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+    transition: transform 0.3s ease;
+  }
+
+  .navbar-logo {
+    @apply flex items-center gap-3 text-white no-underline font-bold text-xl;
+  }
+
+  .navbar-logo img:hover {
+    transform: scale(1.05);
+  }
+
+  .navbar-links {
+    @apply flex gap-6;
   }
 
   .navbar-logo {
@@ -98,12 +119,10 @@
   }
 
   .navbar-logo img {
-    height: 180px;
+    height: 90px;
     width: auto;
     filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
     transition: transform 0.3s ease;
-    margin-top: -25px;
-    margin-bottom: -25px;
   }
   
   .navbar-logo img:hover {
@@ -113,7 +132,7 @@
   .navbar-links {
     @apply flex gap-3;
     margin-left: -20px;
-    margin-top: -15px;
+    margin-top: -5px;
     padding-bottom: 5px;
   }
 
