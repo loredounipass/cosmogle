@@ -119,7 +119,7 @@ export default function VideoPage() {
     const cleanup = () => {
       try { webrtc.fullCleanup(); } catch (e) {}
       try { disconnectSocket(); } catch (e) {}
-      navigate('/');
+      navigate('/checking');
     };
 
     try {
