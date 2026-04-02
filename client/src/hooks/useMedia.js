@@ -69,9 +69,18 @@ export function useMedia(STATE, showNotification) {
         newStream.getAudioTracks().forEach((t) => t.stop());
 
         STATE.isCameraOff = false;
-        setCameraBtnText('OFF');
+        setCameraBtnText('ON');
         if (myVideoEl) myVideoEl.srcObject = STATE.localStream;
         showNotification('Video ON');
+
+        // Enable audio when camera turns on
+        const { audio } = getStreamTracks(STATE.localStream);
+        if (audio.length > 0) {
+          STATE.isMuted = false;
+          audio.forEach((track) => {
+            track.enabled = true;
+          });
+        }
 
         // Renegociación
         try {
@@ -114,8 +123,19 @@ export function useMedia(STATE, showNotification) {
       track.enabled = !STATE.isCameraOff;
     });
 
-    setCameraBtnText(STATE.isCameraOff ? 'ON' : 'OFF');
+    setCameraBtnText(STATE.isCameraOff ? 'OFF' : 'ON');
     showNotification(STATE.isCameraOff ? 'Video OFF' : 'Video ON');
+
+    // When camera turns off, mute the microphone
+    if (STATE.isCameraOff) {
+      const { audio } = getStreamTracks(STATE.localStream);
+      if (audio.length > 0) {
+        STATE.isMuted = true;
+        audio.forEach((track) => {
+          track.enabled = false;
+        });
+      }
+    }
 
     try {
       if (STATE.socket && STATE.roomid) {
@@ -135,6 +155,12 @@ export function useMedia(STATE, showNotification) {
       return;
     }
 
+    // Don't allow mute toggle if camera is off
+    if (STATE.isCameraOff) {
+      showNotification('Turn on camera first');
+      return;
+    }
+
     const { audio } = getStreamTracks(STATE.localStream);
     if (audio.length === 0) {
       showNotification('No audio track');
@@ -146,7 +172,7 @@ export function useMedia(STATE, showNotification) {
       track.enabled = !STATE.isMuted;
     });
 
-    setMuteBtnText(STATE.isMuted ? 'ON' : 'OFF');
+    setMuteBtnText(STATE.isMuted ? 'MUTED' : 'MUTE');
     showNotification(STATE.isMuted ? 'Audio OFF' : 'Audio ON');
 
     try {

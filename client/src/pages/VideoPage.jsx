@@ -104,7 +104,10 @@ export default function VideoPage() {
     STATE.type = null;
     STATE.retryCount = 0;
     STATE.isReconnecting = false;
-    setCameraBtnText('ON');
+    STATE.isCameraOff = true;
+    STATE.isMuted = true;
+    setCameraBtnText('OFF');
+    setMuteBtnText('MUTED');
     setSpinnerVisible(true);
     setAppState(AppState.CONNECTING);
   }, [STATE, webrtc, setAppState]);
@@ -138,7 +141,7 @@ export default function VideoPage() {
   }, [toggleCamera]);
 
   const handleMute = useCallback(() => {
-    toggleMute((text) => setMuteBtnText(text === 'ON' ? 'MUTED' : 'MUTE'));
+    toggleMute((text) => setMuteBtnText(text));
   }, [toggleMute]);
 
   const handleSend = useCallback(() => {

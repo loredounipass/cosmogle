@@ -449,8 +449,13 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     };
 
     if (STATE.localStream) {
-      enableVideoTracks(STATE.localStream);
-      enableAudioTracks(STATE.localStream);
+      // Only enable tracks if they weren't explicitly turned off
+      if (!STATE.isCameraOff) {
+        enableVideoTracks(STATE.localStream);
+      }
+      if (!STATE.isMuted) {
+        enableAudioTracks(STATE.localStream);
+      }
       STATE.localStream.getTracks().forEach((track) => {
         STATE.peer.addTrack(track, STATE.localStream);
       });

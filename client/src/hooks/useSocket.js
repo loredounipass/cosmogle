@@ -90,7 +90,7 @@ export function useSocket({
 
       showNotification('Partner disconnected. Searching...');
       webrtc.lightCleanup();
-      setCameraBtnText('ON'); // Reset visual del botón de cámara
+      setCameraBtnText('OFF'); // Reset visual del botón de cámara (OFF = con línea)
       clearMessages();
       setSpinnerVisible(true);
       setAppState(AppState.CONNECTING);
