@@ -172,24 +172,32 @@ export default function VideoPage() {
   // ---- RENDER ----
   return (
     <div className="page-video-root">
-      <VideoHolder
-        ref={{ myVideoRef, strangerVideoRef }}
-        spinnerVisible={spinnerVisible}
-        onNext={handleNext}
-        onMute={handleMute}
-        onExit={handleExit}
-        onCamera={handleCamera}
-        muteBtnText={muteBtnText}
-        cameraBtnText={cameraBtnText}
-      />
+      <div className="glass-app-container">
+        <div className="sidebar-holder">
+          <div className="sidebar-logo">
+            <img src="/assets/cosmogle.png" alt="Logo" />
+          </div>
+        </div>
 
-      <ChatHolder
-        messages={messages}
-        isTyping={isTyping}
-        inputRef={inputRef}
-        onSend={handleSend}
-        onInput={handleInput}
-      />
+        <VideoHolder
+          ref={{ myVideoRef, strangerVideoRef }}
+          spinnerVisible={spinnerVisible}
+          onNext={handleNext}
+          onMute={handleMute}
+          onExit={handleExit}
+          onCamera={handleCamera}
+          muteBtnText={muteBtnText}
+          cameraBtnText={cameraBtnText}
+        />
+
+        <ChatHolder
+          messages={messages}
+          isTyping={isTyping}
+          inputRef={inputRef}
+          onSend={handleSend}
+          onInput={handleInput}
+        />
+      </div>
 
       <Notification notifications={notifications} />
     </div>
