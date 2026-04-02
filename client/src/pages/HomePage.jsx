@@ -51,11 +51,6 @@ export default function HomePage() {
       <main className="home-main">
         <section className="home-hero">
           <div className={`home-hero-content ${isLoaded ? 'loaded' : ''}`}>
-            <div className="hero-badge">
-              <span className="badge-dot"></span>
-              <span>Conexión en tiempo real</span>
-            </div>
-            
             <h1 className="hero-title">
               <span className="title-line">Conecta con</span>
               <span className="title-gradient">Personas del Mundo</span>
