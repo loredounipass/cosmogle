@@ -1116,8 +1116,11 @@
   /* ── VIDEO PAGE ROOT WRAPPER ── */
   .page-video-root {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    background-color: #0f1015;
-    background-image: radial-gradient(circle at top right, #1a1a24, #0f1015);
+    background-color: #0a0a0f;
+    background-image: 
+      radial-gradient(circle at top right, #1a1a24, #0a0a0f),
+      radial-gradient(circle at 20% 30%, rgba(79, 172, 254, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(161, 140, 209, 0.05) 0%, transparent 50%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1127,6 +1130,22 @@
     padding: 15px 20px;
     box-sizing: border-box;
     position: relative;
+  }
+
+  /* Floating Orbs for Video Page */
+  .page-video-root::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: 
+      radial-gradient(circle at 10% 20%, rgba(79, 172, 254, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(161, 140, 209, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(79, 172, 254, 0.03) 0%, transparent 60%);
   }
 
   /* The main glassy container that holds everything */
@@ -1139,10 +1158,10 @@
     width: 100%;
     max-width: 1600px;
     height: 96vh;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(25px);
     -webkit-backdrop-filter: blur(25px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(79, 172, 254, 0.1);
     border-radius: 24px;
     padding: 0;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
@@ -1153,9 +1172,9 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
     border-radius: 24px 0 0 24px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(79, 172, 254, 0.08);
     border-right: none;
     padding: 0;
     overflow: hidden;
@@ -1170,8 +1189,8 @@
     align-items: center;
     margin-bottom: 20px;
     padding: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(79, 172, 254, 0.08);
+    background: rgba(79, 172, 254, 0.03);
     border-top-left-radius: 24px;
     border-top-right-radius: 0;
     overflow: hidden;
@@ -1231,18 +1250,18 @@
   #video {
     width: 100%;
     height: calc(50% - 10px);
-    background-color: #1a1b23;
+    background-color: #121218;
     object-fit: cover;
     position: relative;
     z-index: 1;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(79, 172, 254, 0.15);
     border-radius: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
 
   /* Local video (PiP circle) */
   #my-video {
-    background-color: #1a1b23;
+    background-color: #121218;
     position: relative;
     top: auto;
     right: auto;
@@ -1250,9 +1269,9 @@
     height: calc(50% - 10px);
     border-radius: 20px;
     object-fit: cover;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(79, 172, 254, 0.15);
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     z-index: 1;
   }
 
@@ -1328,12 +1347,12 @@
     margin-left: 0;
     border: none;
     border-radius: 0 24px 24px 0;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
     backdrop-filter: none;
     display: flex;
     flex-direction: column;
     box-shadow: none;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(79, 172, 254, 0.08);
     border-left: none;
     padding-left: 20px;
     overflow: hidden;
@@ -1373,8 +1392,8 @@
     white-space: pre-wrap; /* Preserve spaces but allow wrapping */
     padding: 12px 18px;
     border-radius: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(79, 172, 254, 0.1);
     max-width: 85%;
     width: auto;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
@@ -1386,8 +1405,8 @@
   }
 
   .chat-holder .msg.own-msg {
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%);
-    border: none;
+    background: linear-gradient(135deg, rgba(79, 172, 254, 0.3) 0%, rgba(161, 140, 209, 0.3) 100%);
+    border: 1px solid rgba(79, 172, 254, 0.2);
     align-self: flex-end;
     border-bottom-right-radius: 4px;
     max-width: 85%;
@@ -1408,7 +1427,7 @@
   .chat-holder .input {
     background-color: transparent;
     padding: 15px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(79, 172, 254, 0.1);
     flex-shrink: 0;
   }
 
@@ -1422,7 +1441,7 @@
     flex: 1;
     min-width: 0;
     padding: 12px 50px 12px 20px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(79, 172, 254, 0.2);
     border-radius: 25px;
     font-size: 14px;
     background-color: rgba(0, 0, 0, 0.3);
@@ -1432,19 +1451,19 @@
   }
 
   .chat-holder .input input::placeholder {
-    color: #aaa;
+    color: #888;
   }
 
   .chat-holder .input input:focus {
-    border-color: #8b5cf6;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+    border-color: #4facfe;
+    box-shadow: 0 0 10px rgba(79, 172, 254, 0.3);
     background-color: rgba(0, 0, 0, 0.5);
   }
 
   .chat-holder .input button {
     position: absolute;
     right: 5px;
-    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    background: linear-gradient(135deg, #4facfe, #a18cd1);
     color: #ffffff;
     font-size: 14px;
     width: 35px;
