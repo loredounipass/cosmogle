@@ -1153,7 +1153,7 @@
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: 160px 2fr 1.2fr;
+    grid-template-columns: 180px 2fr 1.2fr;
     gap: 25px;
     width: 100%;
     max-width: 1600px;
