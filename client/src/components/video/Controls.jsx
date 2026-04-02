@@ -10,7 +10,7 @@ export default function Controls({
   muteBtnText,
   cameraBtnText,
 }) {
-  const isCameraOff = cameraBtnText === 'ON';
+  const isCameraOff = cameraBtnText !== 'ON';
   const isMuted = muteBtnText !== 'MUTE';
 
   return (

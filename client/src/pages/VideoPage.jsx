@@ -26,8 +26,8 @@ export default function VideoPage() {
 
   // ---- UI STATE ----
   const [spinnerVisible, setSpinnerVisible] = useState(true);
-  const [muteBtnText,    setMuteBtnText]    = useState('MUTE');
-  const [cameraBtnText,  setCameraBtnText]  = useState('ON');
+  const [muteBtnText,    setMuteBtnText]    = useState('MUTED');
+  const [cameraBtnText,  setCameraBtnText]  = useState('OFF');
 
   // ---- HOOKS ----
   const { STATE, setAppState, canPerformAction } = useAppState();
@@ -138,7 +138,7 @@ export default function VideoPage() {
   }, [toggleCamera]);
 
   const handleMute = useCallback(() => {
-    toggleMute((text) => setMuteBtnText(text === 'ON' ? 'MUTE' : 'MUTED'));
+    toggleMute((text) => setMuteBtnText(text === 'ON' ? 'MUTED' : 'MUTE'));
   }, [toggleMute]);
 
   const handleSend = useCallback(() => {
