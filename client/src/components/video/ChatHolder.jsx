@@ -14,7 +14,6 @@ export default function ChatHolder({
 }) {
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll al último mensaje
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -40,14 +39,18 @@ export default function ChatHolder({
           ))}
           <div ref={messagesEndRef} />
         </div>
+      </div>
 
-        <div
-          id="typingIndicator"
-          style={{ display: isTyping ? 'block' : 'none' }}
-        >
-          <span className="scanline"></span>
-          Stranger is typing...
+      <div
+        className="typing-indicator"
+        style={{ display: isTyping ? 'flex' : 'none' }}
+      >
+        <div className="typing-dots">
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
+        <span className="typing-text">Stranger is typing</span>
       </div>
 
       <div className="input">

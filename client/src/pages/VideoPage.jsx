@@ -28,6 +28,7 @@ export default function VideoPage() {
   const [spinnerVisible, setSpinnerVisible] = useState(true);
   const [muteBtnText,    setMuteBtnText]    = useState('MUTED');
   const [cameraBtnText,  setCameraBtnText]  = useState('OFF');
+  const [activeVideo, setActiveVideo] = useState('stranger'); // 'stranger' | 'self'
 
   // ---- HOOKS ----
   const { STATE, setAppState, canPerformAction } = useAppState();
@@ -196,6 +197,10 @@ export default function VideoPage() {
     } catch (e) {}
   }, [STATE]);
 
+  const handleVideoClick = useCallback((video) => {
+    setActiveVideo(video);
+  }, []);
+
   // ---- RENDER ----
   return (
     <div className="page-video-root">
@@ -218,6 +223,8 @@ export default function VideoPage() {
           onCamera={handleCamera}
           muteBtnText={muteBtnText}
           cameraBtnText={cameraBtnText}
+          activeVideo={activeVideo}
+          onVideoClick={handleVideoClick}
         />
 
         <ChatHolder
