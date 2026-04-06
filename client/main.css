@@ -1373,6 +1373,43 @@
     .video-main {
       border-radius: 16px;
     }
+
+    .video-holder {
+      height: 45vh;
+    }
+
+    .video-container {
+      flex: 1;
+      position: relative;
+    }
+
+    .video-holder .controls {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 30px;
+      gap: 12px;
+      z-index: 150;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .video-holder .cyber-button {
+      width: 38px;
+      height: 38px;
+    }
+
+    .video-holder .cyber-button svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .chat-holder {
+      margin-bottom: 70px;
+    }
   }
 
   @media only screen and (max-width: 1000px) {
@@ -1394,6 +1431,43 @@
 
     .video-main {
       border-radius: 16px;
+    }
+
+    .video-holder {
+      height: 50vh;
+    }
+
+    .video-container {
+      flex: 1;
+      position: relative;
+    }
+
+    .video-holder .controls {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 30px;
+      gap: 15px;
+      z-index: 150;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .video-holder .cyber-button {
+      width: 40px;
+      height: 40px;
+    }
+
+    .video-holder .cyber-button svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .chat-holder {
+      margin-bottom: 80px;
     }
   }
 
@@ -1538,23 +1612,26 @@
   .chat-holder .typing-indicator {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 6px;
     padding: 0;
-    margin: 8px 0 0 0;
+    margin: 8px auto;
     background: transparent;
     border: none;
     box-shadow: none;
     flex-shrink: 0;
+    width: 100%;
   }
 
   .chat-holder .typing-dots {
     display: flex;
-    gap: 4px;
+    gap: 3px;
+    align-items: center;
   }
 
   .chat-holder .typing-dots span {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     background: linear-gradient(135deg, #4facfe, #a18cd1);
     border-radius: 50%;
     animation: typingBounce 1.4s infinite ease-in-out both;
@@ -1573,8 +1650,9 @@
   }
 
   .chat-holder .typing-text {
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 500;
+    opacity: 0.7;
     background: linear-gradient(135deg, #4facfe, #a18cd1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1683,8 +1761,9 @@
   }
 
   .chat-holder .typing-text {
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 500;
+    opacity: 0.7;
     background: linear-gradient(135deg, #4facfe, #a18cd1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1703,8 +1782,8 @@
   }
 
   .chat-holder .typing-dots span {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     background: linear-gradient(135deg, #4facfe, #a18cd1);
     border-radius: 50%;
     animation: typingBounce 1.4s infinite ease-in-out both;
@@ -1723,8 +1802,9 @@
   }
 
   .chat-holder .typing-text {
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 500;
+    opacity: 0.7;
     background: linear-gradient(135deg, #4facfe, #a18cd1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1971,12 +2051,12 @@
     .glass-app-container {
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 10px;
       padding: 10px;
-      height: 100dvh; /* use dynamic viewport height for mobile */
+      height: 100dvh;
       border-radius: 0;
       border: none;
-      background: #0f1015; /* Fallback for mobile if glass is too heavy */
+      background: #0f1015;
     }
 
     .sidebar-holder {
@@ -1984,7 +2064,7 @@
     }
 
     .video-holder {
-      height: 45vh;
+      height: 55vh;
       width: 100%;
       margin: 0;
       flex-shrink: 0;
@@ -1992,19 +2072,21 @@
 
     .chat-holder {
       flex: 1;
-      height: 0; /* Important for flex-1 scrolling to work */
+      height: auto;
       width: 100%;
       margin-left: 0;
-      margin-bottom: 70px; /* space for fixed controls */
+      margin-bottom: 0;
       display: flex;
       flex-direction: column;
       border-left: none;
       padding-left: 0;
+      overflow: hidden;
     }
 
     .chat-holder .messages {
       flex: 1;
       overflow-y: auto;
+      min-height: 0;
     }
 
     .controls {
@@ -2031,6 +2113,7 @@
 
     .chat-holder .input {
       padding: 10px 15px;
+      flex-shrink: 0;
     }
 
     .chat-holder .input input {
@@ -2048,7 +2131,7 @@
   /* Responsive video page — mobile */
   @media only screen and (max-width: 600px) {
     .video-holder {
-      height: 40vh; /* slightly smaller on very small screens to leave room for chat */
+      height: 58vh;
     }
 
     .controls {
@@ -2056,7 +2139,7 @@
     }
     
     .chat-holder {
-      margin-bottom: 60px;
+      margin-bottom: 0;
     }
   }
 
