@@ -8,7 +8,7 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
-    allowedHosts: ['marquis-prorefugee-lala.ngrok-free.app'],
+    allowedHosts: ['ctqkwg7k-5173.use2.devtunnels.ms'],
     host: true
   }
 });
