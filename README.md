@@ -43,10 +43,12 @@ Este proyecto utiliza las siguientes tecnologías:
 
 
 ## Clonar repositorio
+```bash
+$ git clone https://github.com/loredounipass/cosmogle
 ```
-$ git clone https://github.com/loredounipass/Strangers
-```
-$ cd Strangers
+
+```bash
+$ cd cosmogle
 ```
 
 ## Iniciar Frontend
@@ -63,6 +65,11 @@ $ pnpm run dev
 $ cd server
 $ pnpm install
 $ pnpm run dev
+```
+
+## iniciar contenedores turn server y redis
+```bash
+$ docker-compose up -d
 ```
 
 ## Welcome page
