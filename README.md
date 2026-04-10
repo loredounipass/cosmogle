@@ -49,6 +49,11 @@ $ pnpm install
 $ pnpm run dev
 ```
 
+## Welcome page
 ![Welcome](./capturas/WELCOME.png)
+
+## Inicio page
 ![Inicio](./capturas/INICIO.png)
+
+## Video page
 ![Video](./capturas/VIDEO.png)
