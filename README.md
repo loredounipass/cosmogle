@@ -27,6 +27,8 @@ Este proyecto utiliza las siguientes tecnologías:
 - ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white) **Docker**
 - ![Redis](https://img.shields.io/badge/Redis-DC382C?style=flat&logo=redis&logoColor=white) **Redis**
 
+
+
 # logo
 ![cosmogle-logo](./client/assets/cosmogle.png)
 
