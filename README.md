@@ -5,17 +5,27 @@ cosmogle is a chill random video chat app where you can connect face-to-face wit
 The app is still in development and there’s plenty of room for improvement, but the core idea is already live. It’s an open project — anyone’s welcome to contribute!
 
 
+
 Este proyecto utiliza las siguientes tecnologías:
 
 ## 🛠️ Tecnologías Stack
+
+# Client
 - ![JavaScript](https://img.shields.io/badge/JavaScript-323330?style=flat&logo=javascript&logoColor=F7DF1E) **JavaScript**
 - ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat&logo=node.js&logoColor=white) **Node.js**
-- ![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=flat&logo=socket.io&logoColor=white) **Socket.io**
 - ![WebRTC](https://img.shields.io/badge/WebRTC-333333?style=flat&logo=webrtc&logoColor=white) **WebRTC**
+- ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white) **Vite**
+- ![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=flat&logo=socket.io&logoColor=white) **Socket.io** 
 - ![REACT](https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=white) **REACT**
 - ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white) **TailwindCSS**
+
+# Server
+- ![Typescript](https://img.shields.io/badge/Typescript-323330?style=flat&logo=typescript&logoColor=F7DF1E) **Typescript**
+- ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat&logo=node.js&logoColor=white) **Node.js**
+- ![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=flat&logo=socket.io&logoColor=white) **Socket.io**
 - ![Express](https://img.shields.io/badge/Express.js-404D59?style=flat&logo=express&logoColor=white) **Express.js**
 - ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white) **Docker**
+- ![Redis](https://img.shields.io/badge/Redis-DC382C?style=flat&logo=redis&logoColor=white) **Redis**
 
 # logo
 ![cosmogle-logo](./client/assets/cosmogle.png)
