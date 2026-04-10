@@ -6,7 +6,7 @@ The app is still in development and there’s plenty of room for improvement, bu
 
 
 
-![strangers-logo](./client//public/black%20yellow%20minimalist%20Idea%20Logo.gif)
+![strangers-logo](./client/public/black%20yellow%20minimalist%20Idea%20Logo.gif)
 
 Este proyecto utiliza las siguientes tecnologías:
 
@@ -46,5 +46,5 @@ $ npm start
 ```
 
 
-![Inicio](/client//public//CAPTURAS//INICIO.png)
-![Video](/client//public//CAPTURAS/VIDEO.png)
+![Inicio](./client/public/CAPTURAS/INICIO.png)
+![Video](./client/public/CAPTURAS/VIDEO.png)
