@@ -1731,14 +1731,14 @@
     font-weight: 600;
   }
 
-  /* Typing Indicator - Inline style without box */
+  /* Typing Indicator - Vertically shifted upwards as requested */
   .chat-holder .typing-indicator {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
     padding: 0;
-    margin: 8px 0 0 0;
+    margin: -6px 0 8px 0; /* Subido ligeramente */
     background: transparent;
     border: none;
     box-shadow: none;
