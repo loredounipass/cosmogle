@@ -67,7 +67,7 @@ export async function getMediaStream(videoConstraints, audioConstraints = null) 
   const defaultAudio = {
     echoCancellation: true,
     noiseSuppression: true,
-    autoGainControl: true
+    autoGainControl: true,
   };
   
   return navigator.mediaDevices.getUserMedia({
@@ -124,7 +124,7 @@ export async function getAudioOnlyStream() {
     audio: {
       echoCancellation: true,
       noiseSuppression: true,
-      autoGainControl: true
+      autoGainControl: true,
     },
     video: false
   });

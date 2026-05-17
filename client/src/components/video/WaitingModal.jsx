@@ -2,13 +2,13 @@ import { AppState } from '../../hooks/useAppState.js';
 
 // M-01: Map FSM states to human-readable labels shown in the waiting overlay
 const STATE_LABELS = {
-  [AppState.IDLE]:         'Listo para conectar',
-  [AppState.CONNECTING]:   'Conectando al servidor\u2026',
-  [AppState.MATCHED]:      'Pareja encontrada\u2026',
-  [AppState.NEGOTIATING]:  'Estableciendo conexi\u00f3n\u2026',
+  [AppState.IDLE]:         'Preparando todo',
+  [AppState.CONNECTING]:   'Buscando amigos disponibles\u2026',
+  [AppState.MATCHED]:      '\u00a1Alguien se uni\u00f3!',
+  [AppState.NEGOTIATING]:  'Conectando con tu amigo\u2026',
   [AppState.CONNECTED]:    'Conectado',
   [AppState.RECONNECTING]: 'Reconectando\u2026',
-  [AppState.DISCONNECTED]: 'Buscando nueva pareja\u2026',
+  [AppState.DISCONNECTED]: 'Buscando nueva persona\u2026',
 };
 
 /**
