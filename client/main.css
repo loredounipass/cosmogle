@@ -1612,7 +1612,7 @@
   }
 
   .chat-holder .wrapper {
-    margin-bottom: auto;
+    margin-top: auto;
     display: flex;
     flex-direction: column;
   }

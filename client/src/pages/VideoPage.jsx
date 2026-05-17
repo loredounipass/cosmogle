@@ -103,6 +103,7 @@ export default function VideoPage() {
     }
 
     // 2. Limpiar localmente (lightCleanup ya apaga cámara y detiene video tracks)
+    clearMessages();
     webrtc.lightCleanup();
     STATE.type = null;
     STATE.retryCount = 0;
@@ -113,7 +114,7 @@ export default function VideoPage() {
     setMuteBtnText('MUTED');
     setSpinnerVisible(true);
     setAppState(AppState.CONNECTING);
-  }, [STATE, webrtc, setAppState]);
+  }, [STATE, webrtc, clearMessages, setAppState]);
 
   // M-03: handleExit and handleBack were identical — unified into handleLeave
   const handleLeave = useCallback(() => {

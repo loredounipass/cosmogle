@@ -7,6 +7,7 @@ export default function CheckingPage() {
   const streamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const firstRender = useRef(true);
   const [audioLevel, setAudioLevel] = useState(0);
   const [status, setStatus] = useState('checking');
   const [error, setError] = useState(null);
@@ -25,6 +26,15 @@ export default function CheckingPage() {
       cleanup();
     };
   }, []);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    console.log('[localStorage] Guardando checking_camera_on:', cameraOn);
+    localStorage.setItem('checking_camera_on', cameraOn);
+  }, [cameraOn]);
 
   const cleanup = () => {
     if (streamRef.current) {
@@ -59,6 +69,12 @@ export default function CheckingPage() {
       streamRef.current = audioStream;
       setStatus('success');
       setupAudioLevel(audioStream);
+
+      const savedCamera = localStorage.getItem('checking_camera_on');
+      console.log('[localStorage] Leído checking_camera_on:', savedCamera);
+      if (savedCamera === 'true') {
+        await toggleCamera();
+      }
     } catch (err) {
       console.error('Error accessing audio:', err);
       setStatus('error');
