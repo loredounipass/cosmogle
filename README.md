@@ -5,7 +5,6 @@ cosmogle is a chill random video chat app where you can connect face-to-face wit
 The app is still in development and there’s plenty of room for improvement, but the core idea is already live. It’s an open project — anyone’s welcome to contribute!
 
 
-
 Este proyecto utiliza las siguientes tecnologías:
 
 ## 🛠️ Tecnologías Stack
