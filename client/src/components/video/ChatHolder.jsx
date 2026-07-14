@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
+import { AppState } from '../../hooks/useAppState.js';
 
 /**
  * ChatHolder — Panel de mensajes + input + typing indicator.
@@ -12,7 +13,9 @@ export default function ChatHolder({
   inputRef,
   onSend,
   onInput,
+  appState,
 }) {
+  const isConnected = appState === AppState.CONNECTED;
   const messagesEndRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pickerWidth, setPickerWidth] = useState(320);
@@ -88,11 +91,12 @@ export default function ChatHolder({
       </div>
 
       <div className="input">
-        <div className="input-container">
+        <div className={`input-container ${!isConnected ? 'disabled' : ''}`}>
           <button 
             className="emoji-btn" 
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             title="Add emoji"
+            disabled={!isConnected}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>
@@ -103,13 +107,14 @@ export default function ChatHolder({
           </button>
           <input
             type="text"
-            placeholder="Message..."
+            placeholder={isConnected ? 'Message...' : 'Esperando conexión...'}
             id="messageInput"
             ref={inputRef}
             onKeyDown={handleKeyDown}
             onChange={(e) => onInput && onInput(e.target.value)}
+            disabled={!isConnected}
           />
-          <button id="send" onClick={onSend} title="Send">
+          <button id="send" onClick={onSend} title="Send" disabled={!isConnected}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>

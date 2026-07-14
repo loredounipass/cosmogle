@@ -320,6 +320,7 @@ export default function VideoPage() {
           inputRef={inputRef}
           onSend={handleSend}
           onInput={handleInput}
+          appState={appState}
         />
       </div>
 

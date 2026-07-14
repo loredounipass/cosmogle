@@ -348,11 +348,11 @@ export default function CheckingPage() {
           {/* Actions */}
           <div className="checking-actions">
             <div className="status-bar">
-              <div className={`status-dot ${status === 'success' && cameraOn ? 'ready' : ''}`}></div>
+              <div className={`status-dot ${status === 'success' ? 'ready' : ''}`}></div>
               <span>
                 {status === 'checking' && 'Verificando...'}
                 {status === 'error' && 'Error'}
-                {status === 'success' && !cameraOn && 'Cámara requerida'}
+                {status === 'success' && !cameraOn && 'Solo audio'}
                 {status === 'success' && cameraOn && 'Listo'}
               </span>
             </div>
@@ -364,9 +364,9 @@ export default function CheckingPage() {
               <button 
                 className="btn-start" 
                 onClick={handleStart}
-                disabled={status !== 'success' || !cameraOn}
+                disabled={status !== 'success'}
               >
-                Comenzar
+                {cameraOn ? 'Comenzar' : 'Comenzar sin cámara'}
               </button>
             </div>
           </div>
