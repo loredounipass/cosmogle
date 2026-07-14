@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──────────────────────────────────────────
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY src/ ./src/
 RUN npx tsc
 
 # ── Stage 2: Production ────────────────────────────────────
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
