@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   server:
     build:
@@ -24,6 +22,9 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    env_file:
+      - ./server/.env
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes:
       - backend-redis:/data
     networks:
@@ -39,18 +40,9 @@ services:
       - "49152-49160:49152-49160/udp"
     env_file:
       - ./server/.env
-    environment:
-      - TURN_USER=${TURN_USERNAME}
-      - TURN_PASSWORD=${TURN_CREDENTIAL}
-      - TURN_REALM=${TURN_REALM:-strangers.local}
+    entrypoint: ["sh", "-c"]
     command:
-      - -n
-      - --log-file=stdout
-      - --min-port=49152
-      - --max-port=49160
-      - --user=${TURN_USER}:${TURN_PASSWORD}
-      - --realm=${TURN_REALM}
-      - --lt-cred-mech
+      - "turnserver -n --log-file=stdout --min-port=49152 --max-port=49160 --user=$${TURN_USERNAME}:$${TURN_CREDENTIAL} --realm=$${TURN_REALM} --lt-cred-mech"
     networks:
       - backend
 
