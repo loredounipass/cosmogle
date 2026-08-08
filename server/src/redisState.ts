@@ -11,6 +11,8 @@ const ROOM_TTL = 300;
 const SOCKET_TTL = 3600;
 
 export const redisState = {
+
+  // ADD A SOCKET TO THE WAITING QUEUE IN REDIS
   async addToWaitingQueue(socketId: string): Promise<number> {
     if (!isRedisConnected()) return -1;
     
@@ -31,6 +33,8 @@ export const redisState = {
     }
   },
 
+
+  // REMOVE A SOCKET FROM THE WAITING QUEUE IN REDIS
   async removeFromWaitingQueue(socketId: string): Promise<number> {
     if (!isRedisConnected()) return -1;
     
@@ -49,6 +53,8 @@ export const redisState = {
     }
   },
 
+
+  // GET ALL SOCKET IDS IN THE WAITING QUEUE
   async getWaitingQueue(): Promise<string[]> {
     if (!isRedisConnected()) return [];
     
@@ -62,6 +68,8 @@ export const redisState = {
     }
   },
 
+
+  // GET THE SIZE OF THE WAITING QUEUE
   async getWaitingQueueSize(): Promise<number> {
     if (!isRedisConnected()) return 0;
     
@@ -75,7 +83,8 @@ export const redisState = {
     }
   },
 
-  // C-07: Atomic take using Lua script to prevent race conditions in multi-instance deployments
+
+  // ATOMICALLY TAKE THE NEXT AVAILABLE SOCKET FROM THE QUEUE USING LUA SCRIPT
   async takeFromWaitingQueue(excludeId?: string): Promise<string | null> {
     if (!isRedisConnected()) return null;
     
@@ -104,6 +113,8 @@ export const redisState = {
     }
   },
 
+
+  // CREATE A NEW ROOM IN REDIS
   async createRoom(roomId: string, socketId: string, clientId: string | null): Promise<void> {
     if (!isRedisConnected()) return;
     
@@ -117,8 +128,6 @@ export const redisState = {
       
       await redis.hset(ROOMS_KEY, roomId, JSON.stringify(room));
       await redis.hset(SOCKET_TO_ROOM_KEY, socketId, roomId);
-      // H-02: Removed redis.expire(ROOMS_KEY) — global TTL was wiping ALL rooms.
-      // Zombie cleanup interval handles stale data instead.
       
       logRedisOperation('createRoom', ROOMS_KEY, true, { roomId, socketId });
       logger.info(LogChannel.ROOM, `Created room ${roomId}`, { p1: socketId, clientId });
@@ -128,6 +137,8 @@ export const redisState = {
     }
   },
 
+
+  // ADD A SECOND PEER TO AN EXISTING ROOM
   async addPeerToRoom(roomId: string, socketId: string, clientId: string | null, role: PeerRole): Promise<void> {
     if (!isRedisConnected()) return;
     
@@ -143,7 +154,6 @@ export const redisState = {
       
       await redis.hset(ROOMS_KEY, roomId, JSON.stringify(room));
       await redis.hset(SOCKET_TO_ROOM_KEY, socketId, roomId);
-      // H-02: Removed redis.expire(ROOMS_KEY) — see createRoom comment.
       
       logRedisOperation('addPeerToRoom', ROOMS_KEY, true, { roomId, socketId, role });
       logger.info(LogChannel.ROOM, `Added ${socketId} to room ${roomId} as ${role}`, { role });
@@ -153,6 +163,8 @@ export const redisState = {
     }
   },
 
+
+  // GET A ROOM BY ITS ID
   async getRoom(roomId: string): Promise<Room | null> {
     if (!isRedisConnected()) return null;
     
@@ -168,6 +180,8 @@ export const redisState = {
     }
   },
 
+
+  // GET A ROOM BY SOCKET ID
   async getRoomBySocket(socketId: string): Promise<Room | null> {
     if (!isRedisConnected()) return null;
     
@@ -187,6 +201,8 @@ export const redisState = {
     }
   },
 
+
+  // DESTROY A ROOM AND CLEAN UP ALL RELATED MAPPINGS
   async destroyRoom(roomId: string): Promise<void> {
     if (!isRedisConnected()) return;
     
@@ -213,7 +229,8 @@ export const redisState = {
     }
   },
 
-  // H-09: Optimized memory-safe batch cleaner replacing destructive hgetall
+
+  // SCAN AND DESTROY ZOMBIE ROOMS USING BATCH CURSOR
   async cleanZombieRooms(): Promise<{ checked: number, destroyed: number }> {
     let checked = 0;
     let destroyed = 0;
@@ -228,7 +245,6 @@ export const redisState = {
         const [nextCursor, elements] = await redis.hscan(ROOMS_KEY, cursor, 'COUNT', 100);
         cursor = nextCursor;
         
-        // Grab queue once per batch to avoid immense latency
         const queue = await this.getWaitingQueue();
 
         for (let i = 0; i < elements.length; i += 2) {
@@ -268,6 +284,8 @@ export const redisState = {
     return { checked, destroyed };
   },
 
+
+  // ADD A SOCKET TO THE ACTIVE SOCKETS SET
   async addActiveSocket(socketId: string): Promise<number> {
     if (!isRedisConnected()) return 0;
     
@@ -286,6 +304,8 @@ export const redisState = {
     }
   },
 
+
+  // REMOVE A SOCKET FROM THE ACTIVE SOCKETS SET
   async removeActiveSocket(socketId: string): Promise<number> {
     if (!isRedisConnected()) return 0;
     
@@ -303,6 +323,8 @@ export const redisState = {
     }
   },
 
+
+  // GET THE TOTAL COUNT OF ACTIVE SOCKETS
   async getActiveSocketCount(): Promise<number> {
     if (!isRedisConnected()) return 0;
     
@@ -316,6 +338,8 @@ export const redisState = {
     }
   },
 
+
+  // GET ALL ACTIVE SOCKET IDS
   async getActiveSockets(): Promise<string[]> {
     if (!isRedisConnected()) return [];
     
@@ -329,6 +353,8 @@ export const redisState = {
     }
   },
 
+
+  // REMOVE DEAD SOCKETS AND THEIR ASSOCIATED ROOMS
   async pruneDeadSockets(aliveSocketIds: Set<string>): Promise<void> {
     if (!isRedisConnected()) return;
     

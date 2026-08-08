@@ -11,10 +11,14 @@ const rooms = new Map<string, Room>();
 const socketToRoom = new Map<string, string>();
 const waitingQueue: string[] = [];
 
+
+// CHECK IF A SOCKET IS STILL CONNECTED
 function isSocketAlive(io: Server, socketId: string): boolean {
   return io.sockets.sockets.has(socketId);
 }
 
+
+// REMOVE DEAD SOCKETS FROM THE WAITING QUEUE
 function pruneWaitingQueue(io: Server): void {
   for (let i = waitingQueue.length - 1; i >= 0; i--) {
     if (!isSocketAlive(io, waitingQueue[i])) {
@@ -29,6 +33,8 @@ function pruneWaitingQueue(io: Server): void {
   }
 }
 
+
+// ADD A SOCKET TO THE WAITING QUEUE
 function addToWaitingQueue(socketId: string): void {
   if (!waitingQueue.includes(socketId)) {
     waitingQueue.push(socketId);
@@ -40,6 +46,8 @@ function addToWaitingQueue(socketId: string): void {
   }
 }
 
+
+// REMOVE A SOCKET FROM THE WAITING QUEUE
 export function removeFromWaitingQueue(socketId: string): void {
   const idx = waitingQueue.indexOf(socketId);
   if (idx !== -1) {
@@ -52,6 +60,8 @@ export function removeFromWaitingQueue(socketId: string): void {
   }
 }
 
+
+// TAKE THE NEXT AVAILABLE SOCKET FROM THE WAITING QUEUE
 async function takeFromWaitingQueueAsync(io: Server, excludeId?: string): Promise<string | null> {
   if (useRedis()) {
     const taken = await redisState.takeFromWaitingQueue(excludeId);
@@ -73,6 +83,8 @@ async function takeFromWaitingQueueAsync(io: Server, excludeId?: string): Promis
   return null;
 }
 
+
+// CREATE A NEW ROOM WITH A SINGLE PEER
 function createRoom(socketId: string, clientId: string | null): Room {
   const roomId = uuidv4();
   const room: Room = {
@@ -97,6 +109,8 @@ function createRoom(socketId: string, clientId: string | null): Room {
   return room;
 }
 
+
+// DESTROY A ROOM AND CLEAN UP SOCKET MAPPINGS
 async function destroyRoomAsync(roomId: string): Promise<void> {
   const room = rooms.get(roomId);
   if (!room) {
@@ -125,6 +139,8 @@ async function destroyRoomAsync(roomId: string): Promise<void> {
   }
 }
 
+
+// FIND A ROOM BY SOCKET ID
 async function getRoomBySocketAsync(socketId: string): Promise<Room | null> {
   if (useRedis()) {
     const room = await redisState.getRoomBySocket(socketId);
@@ -145,18 +161,24 @@ async function getRoomBySocketAsync(socketId: string): Promise<Room | null> {
   return room;
 }
 
+
+// DETERMINE WHICH ROLE A SOCKET HAS IN A ROOM
 function getRoleInRoom(socketId: string, room: Room): PeerRole | null {
   if (room.p1?.socketId === socketId) return 'p1';
   if (room.p2?.socketId === socketId) return 'p2';
   return null;
 }
 
+
+// GET THE PARTNER SOCKET ID IN A ROOM
 function getPartnerInRoom(socketId: string, room: Room): string | null {
   if (room.p1?.socketId === socketId) return room.p2?.socketId || null;
   if (room.p2?.socketId === socketId) return room.p1?.socketId || null;
   return null;
 }
 
+
+// MATCH TWO PEERS INTO THE SAME ROOM
 async function matchPeersAsync(
   io: Server,
   p1SocketId: string,
@@ -202,7 +224,8 @@ async function matchPeersAsync(
   return room;
 }
 
-// C-02: Removed dead _roomArr param. L-05: Fixed typo handel → handle.
+
+// HANDLE START EVENT: FIND A MATCH OR CREATE A WAITING ROOM
 export async function handleStart(
   socket: Socket,
   clientId: string | undefined,
@@ -219,7 +242,6 @@ export async function handleStart(
 
   await cleanupSocketAsync(socket.id, io, true);
 
-  // H-07: Use a while-loop instead of unbounded recursion to skip dead sockets
   let waitingId: string | null = null;
   let p1ClientId: string | null = null;
 
@@ -227,7 +249,6 @@ export async function handleStart(
     waitingId = await takeFromWaitingQueueAsync(io, socket.id);
     if (!waitingId) break;
     
-    // We fetch the room to ensure it exists and get P1's client ID for the new distributed architecture
     const room = await getRoomBySocketAsync(waitingId);
     if (!room) {
       logger.warn(LogChannel.MATCH, 'Waiting socket room not found, skipping', { waitingSocket: waitingId });
@@ -269,7 +290,8 @@ export async function handleStart(
   }
 }
 
-// C-02: Removed dead _roomArr param. L-05: Fixed typo handel → handle.
+
+// HANDLE SOCKET DISCONNECT AND TRIGGER CLEANUP
 export async function handleDisconnect(
   disconnectedId: string,
   io: Server,
@@ -283,6 +305,8 @@ export async function handleDisconnect(
   await cleanupSocketAsync(disconnectedId, io, forceCleanup);
 }
 
+
+// CLEANUP SOCKET STATE: REMOVE FROM QUEUE, NOTIFY PARTNER, DESTROY ROOM
 async function cleanupSocketAsync(socketId: string, io: Server, notifyPartner: boolean = true): Promise<void> {
   removeFromWaitingQueue(socketId);
 
@@ -310,7 +334,8 @@ async function cleanupSocketAsync(socketId: string, io: Server, notifyPartner: b
   await destroyRoomAsync(room.roomId);
 }
 
-// C-02: Removed dead _roomArr param.
+
+// GET SOCKET ROLE, PARTNER ID, AND ROOM ID
 export async function getType(socketId: string): Promise<GetTypesResult> {
   const room = await getRoomBySocketAsync(socketId);
   if (!room) {
@@ -336,11 +361,14 @@ export async function getType(socketId: string): Promise<GetTypesResult> {
   return { type: role, partnerId, roomId: room.roomId };
 }
 
-// C-02: Removed dead _roomArr param.
+
+// ADD SOCKET BACK TO THE WAITING QUEUE
 export function markRoomAsWaiting(socketId: string): void {
   addToWaitingQueue(socketId);
 }
 
+
+// PERIODIC CLEANUP OF ZOMBIE ROOMS
 setInterval(async () => {
   const now = Date.now();
   let roomsChecked = 0;
@@ -351,7 +379,6 @@ setInterval(async () => {
     roomsChecked += stats.checked;
     roomsDestroyed += stats.destroyed;
   } else {
-    // H-01: Collect IDs to destroy first, then destroy (avoids mutating Map during iteration)
     const toDestroy: string[] = [];
     for (const [roomId, room] of rooms) {
       roomsChecked++;
@@ -380,6 +407,8 @@ setInterval(async () => {
   }
 }, 30_000);
 
+
+// PERIODIC STATE REPORT FOR DEBUGGING
 setInterval(() => {
   if (useRedis()) {
     redisState.getWaitingQueueSize().then(size => {

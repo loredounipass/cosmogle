@@ -10,6 +10,8 @@ const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
 const REDIS_DB = parseInt(process.env.REDIS_DB || '0');
 
+
+// CREATE REDIS CLIENT WITH RETRY AND RECONNECT STRATEGY
 export const redis = new Redis({
   host: REDIS_HOST,
   port: REDIS_PORT,
@@ -50,10 +52,14 @@ redis.on('reconnecting', () => {
   logger.info(LogChannel.REDIS, 'Reconnecting to Redis...');
 });
 
+
+// CHECK IF REDIS CONNECTION IS READY
 export const isRedisConnected = (): boolean => {
   return redis.status === 'ready';
 };
 
+
+// WAIT FOR REDIS TO BECOME READY WITH TIMEOUT
 export const waitForRedis = async (timeout = 5000): Promise<boolean> => {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -67,6 +73,8 @@ export const waitForRedis = async (timeout = 5000): Promise<boolean> => {
   return false;
 };
 
+
+// EXECUTE A REDIS OPERATION WITH IN-MEMORY FALLBACK
 export const withFallback = async <T>(
   redisFn: () => Promise<T>,
   fallbackFn: () => T,
@@ -82,6 +90,8 @@ export const withFallback = async <T>(
   return fallbackFn();
 };
 
+
+// LOG A REDIS OPERATION RESULT FOR DEBUGGING
 export const logRedisOperation = (operation: string, key: string, success: boolean, details?: any) => {
   if (success) {
     logger.debug(LogChannel.REDIS, `Operation ${operation} success`, { key, ...details });

@@ -8,6 +8,8 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000');
 const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '30');
 
+
+// RATE LIMIT CHECK RESULT INTERFACE
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
@@ -15,14 +17,16 @@ export interface RateLimitResult {
   retryAfter?: number;
 }
 
+
+// GENERATE A REDIS KEY FOR RATE LIMITING
 const getClientKey = (identifier: string, event: string): string => {
   return `ratelimit:${event}:${identifier}`;
 };
 
-// H-08: In-memory rate limiter fallback when Redis is down
 const memoryLimits = new Map<string, { timestamps: number[] }>();
 
-// Clean up old entries periodically to prevent memory leak
+
+// PERIODIC CLEANUP OF EXPIRED IN-MEMORY RATE LIMIT ENTRIES
 setInterval(() => {
   const now = Date.now();
   for (const [key, data] of memoryLimits) {
@@ -31,6 +35,8 @@ setInterval(() => {
   }
 }, 60_000);
 
+
+// CHECK RATE LIMIT USING REDIS OR IN-MEMORY FALLBACK
 export const checkRateLimit = async (
   identifier: string,
   event: string,
@@ -42,7 +48,6 @@ export const checkRateLimit = async (
   const windowStart = now - windowMs;
 
   if (!isRedisConnected()) {
-    // H-08: In-memory sliding window fallback
     let entry = memoryLimits.get(key);
     if (!entry) {
       entry = { timestamps: [] };
@@ -130,6 +135,8 @@ export const checkRateLimit = async (
   }
 };
 
+
+// CREATE A RATE LIMIT MIDDLEWARE FOR A SPECIFIC EVENT
 export const rateLimitMiddleware = (
   event: string,
   maxRequests = RATE_LIMIT_MAX_REQUESTS,
@@ -140,6 +147,8 @@ export const rateLimitMiddleware = (
   };
 };
 
+
+// RESET RATE LIMIT COUNTER FOR A SPECIFIC IDENTIFIER AND EVENT
 export const resetRateLimit = async (identifier: string, event: string): Promise<void> => {
   const key = getClientKey(identifier, event);
   
@@ -153,6 +162,8 @@ export const resetRateLimit = async (identifier: string, event: string): Promise
   }
 };
 
+
+// GET CURRENT RATE LIMIT STATS FOR A SPECIFIC IDENTIFIER AND EVENT
 export const getRateLimitStats = async (identifier: string, event: string): Promise<{
   current: number;
   max: number;
