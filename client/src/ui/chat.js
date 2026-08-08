@@ -1,5 +1,5 @@
-// Chat UI Module
 
+// ADD A MESSAGE TO THE CHAT INTERFACE
 export function addMessage(wrapper, message, isOwn = false) {
   if (!wrapper) return;
   
@@ -18,12 +18,16 @@ export function addMessage(wrapper, message, isOwn = false) {
   wrapper.scrollTop = wrapper.scrollHeight;
 }
 
+
+// TOGGLE TYPING INDICATOR VISIBILITY
 export function showTypingIndicator(element, show) {
   if (element) {
     element.style.display = show ? 'block' : 'none';
   }
 }
 
+
+// CLEAR ALL MESSAGES FROM CHAT
 export function clearChat(wrapper) {
   if (wrapper) {
     wrapper.innerHTML = '';

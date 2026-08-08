@@ -1,8 +1,8 @@
-// Video UI Module
-
 const MAX_VIDEO_PLAY_RETRIES = 5;
 let videoPlayRetries = 0;
 
+
+// SETUP VIDEO ELEMENT EVENTS FOR ERROR RECOVERY
 export function setupVideoElement(videoElement, onPlay, onError) {
   if (!videoElement) return;
   
@@ -25,6 +25,8 @@ export function setupVideoElement(videoElement, onPlay, onError) {
   };
 }
 
+
+// ATTEMPT TO PLAY VIDEO WITH AUTOMATIC RETRIES
 export function attemptPlay(videoElement) {
   if (!videoElement || !videoElement.srcObject) return;
   
@@ -49,6 +51,8 @@ export function attemptPlay(videoElement) {
   }
 }
 
+
+// FORCE PLAY VIDEO WITHOUT RETRIES
 export function forcePlay(videoElement) {
   if (!videoElement) return;
   
@@ -56,6 +60,8 @@ export function forcePlay(videoElement) {
   videoElement.play().catch(() => {});
 }
 
+
+// RESET THE VIDEO RETRY COUNTER
 export function resetVideoRetries() {
   videoPlayRetries = 0;
 }

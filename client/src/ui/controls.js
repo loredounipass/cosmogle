@@ -1,5 +1,5 @@
-// UI Controls Module
 
+// SETUP EVENT LISTENERS FOR UI CONTROLS
 export function setupControls(handlers = {}) {
   const {
     onNext,
@@ -54,6 +54,8 @@ export function setupControls(handlers = {}) {
   }
 }
 
+
+// SHOW A TEMPORARY NOTIFICATION TO THE USER
 export function showNotification(message) {
   const notification = document.createElement('div');
   notification.className = 'notification';
@@ -79,12 +81,16 @@ export function showNotification(message) {
   }, 3000);
 }
 
+
+// DISPLAY THE LOADING SPINNER
 export function showSpinner(spinner) {
   if (spinner) {
     spinner.style.display = 'flex';
   }
 }
 
+
+// HIDE THE LOADING SPINNER
 export function hideSpinner(spinner) {
   if (spinner) {
     spinner.style.display = 'none';
