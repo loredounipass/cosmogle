@@ -1,27 +1,11 @@
 import { useRef, useCallback, useEffect } from 'react';
 
-/**
- * FILTERS — Catálogo completo de filtros alineados con la librería instacam.
- * Referencia: https://github.com/xavierfoucrier/instacam/blob/main/DOCUMENTATION.md
- *
- * Propiedades CSS de instacam (source: src/instacam.js _compute()):
- *   opacity, brightness, contrast, saturate, hue-rotate, invert, grayscale, sepia, blur
- *
- * Filtros custom de instacam (source: demo + DOCUMENTATION.md#filter):
- *   random noise, threshold, pixelate, soft-sobel, color inversion
- *
- * type: 'css' = filtro CSS puro via ctx.filter
- * type: 'pixel' = filtro custom por manipulación de píxeles (como instacam filter callback)
- */
 const FILTERS = {
-  // ── Filtros CSS puros (propiedades directas de instacam) ──
   none:       { label: 'Normal',    type: 'css', css: 'none' },
   grayscale:  { label: 'B&N',       type: 'css', css: 'grayscale(1)' },
   sepia:      { label: 'Sepia',     type: 'css', css: 'sepia(1)' },
   invert:     { label: 'Invertir',  type: 'css', css: 'invert(1)' },
   blur:       { label: 'Blur',      type: 'css', css: 'blur(3px)' },
-
-  // ── Combinaciones de propiedades CSS instacam ──
   vintage:    { label: 'Vintage',   type: 'css', css: 'sepia(0.6) contrast(1.2) brightness(0.9)' },
   cool:       { label: 'Frío',      type: 'css', css: 'hue-rotate(200deg) saturate(0.5) brightness(1.1)' },
   warm:       { label: 'Cálido',    type: 'css', css: 'hue-rotate(30deg) saturate(1.3) brightness(1.1)' },
@@ -48,8 +32,6 @@ const FILTERS = {
   faded_warm: { label: 'Cálido+',   type: 'css', css: 'sepia(0.25) contrast(0.9) brightness(1.15) saturate(1.1)' },
   electric:   { label: 'Eléctrico', type: 'css', css: 'saturate(2.5) contrast(1.4) brightness(1.1) hue-rotate(10deg)' },
   ghost:      { label: 'Fantasma',  type: 'css', css: 'opacity(0.7) brightness(1.3) contrast(0.8) grayscale(0.3)' },
-
-  // ── Filtros custom pixel (como instacam filter callback) ──
   noise:      { label: 'Ruido',     type: 'pixel', fn: 'noise' },
   threshold:  { label: 'Umbral',    type: 'pixel', fn: 'threshold' },
   pixelate:   { label: 'Pixel',     type: 'pixel', fn: 'pixelate' },
@@ -57,20 +39,15 @@ const FILTERS = {
   negative:   { label: 'Negativo',  type: 'pixel', fn: 'negative' },
   posterize:  { label: 'Póster',    type: 'pixel', fn: 'posterize' },
   emboss:     { label: 'Relieve',   type: 'pixel', fn: 'emboss' },
-
-  // ── Filtros AR (MediaPipe + ThreeJS) ──
   dog:        { label: 'Perrito',   type: 'ar' },
   anonymous:  { label: 'Anonymous', type: 'ar' },
 };
 
 export { FILTERS };
 
-/**
- * Filtros pixel — implementaciones basadas en la API filter() de instacam.
- * Cada función recibe imageData y lo modifica in-place.
- */
 const pixelFilters = {
-  // Documentación instacam: random noise filter
+
+  // APPLY NOISE TO PIXELS
   noise(imageData) {
     const data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
@@ -81,7 +58,8 @@ const pixelFilters = {
     }
   },
 
-  // Documentación instacam: threshold filter
+
+  // APPLY THRESHOLD EFFECT TO PIXELS
   threshold(imageData) {
     const data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
@@ -93,7 +71,8 @@ const pixelFilters = {
     }
   },
 
-  // Documentación instacam: color inversion (pixel-level)
+
+  // INVERT PIXEL COLORS
   negative(imageData) {
     const data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
@@ -103,7 +82,8 @@ const pixelFilters = {
     }
   },
 
-  // Instacam demo: pixelate filter
+
+  // PIXELATE THE IMAGE
   pixelate(imageData, w, h) {
     const data = imageData.data;
     const size = 8;
@@ -123,14 +103,14 @@ const pixelFilters = {
     }
   },
 
-  // Instacam demo: soft-sobel edge detection
+
+  // APPLY SOBEL EDGE DETECTION
   sobel(imageData, w, h) {
     const src = new Uint8ClampedArray(imageData.data);
     const data = imageData.data;
     for (let y = 1; y < h - 1; y++) {
       for (let x = 1; x < w - 1; x++) {
         const idx = (y * w + x) * 4;
-        // Grayscale neighbors
         const tl = src[((y-1)*w+(x-1))*4] * 0.3 + src[((y-1)*w+(x-1))*4+1] * 0.59 + src[((y-1)*w+(x-1))*4+2] * 0.11;
         const t  = src[((y-1)*w+x)*4] * 0.3 + src[((y-1)*w+x)*4+1] * 0.59 + src[((y-1)*w+x)*4+2] * 0.11;
         const tr = src[((y-1)*w+(x+1))*4] * 0.3 + src[((y-1)*w+(x+1))*4+1] * 0.59 + src[((y-1)*w+(x+1))*4+2] * 0.11;
@@ -150,7 +130,8 @@ const pixelFilters = {
     }
   },
 
-  // Posterize — reduce color levels
+
+  // POSTERIZE BY REDUCING COLOR LEVELS
   posterize(imageData) {
     const data = imageData.data;
     const levels = 4;
@@ -162,7 +143,8 @@ const pixelFilters = {
     }
   },
 
-  // Emboss — relief effect
+
+  // APPLY EMBOSS RELIEF EFFECT
   emboss(imageData, w, h) {
     const src = new Uint8ClampedArray(imageData.data);
     const data = imageData.data;
@@ -180,13 +162,6 @@ const pixelFilters = {
   },
 };
 
-/**
- * useInstacam — Hook para aplicar filtros en tiempo real al video local.
- *
- * Soporta dos tipos de filtros alineados con la librería instacam:
- * 1. CSS filters (via ctx.filter) — para brightness, contrast, hue, etc.
- * 2. Pixel filters (via getImageData/putImageData) — para noise, threshold, pixelate, sobel
- */
 export function useInstacam(containerRef, videoRef) {
   const canvasRef = useRef(null);
   const hiddenVideoRef = useRef(null);
@@ -196,22 +171,19 @@ export function useInstacam(containerRef, videoRef) {
   const currentFilterRef = useRef('none');
   const isRunningRef = useRef(false);
 
-  /**
-   * drawFrame — Loop de renderizado alineado con instacam._capture() loop.
-   * Aplica filtro CSS o pixel en cada frame.
-   */
+
+  // RENDER LOOP FOR APPLYING FILTERS FRAME BY FRAME
   const drawFrame = useCallback(() => {
     if (!isRunningRef.current) return;
 
     const canvas = canvasRef.current;
-    const video = hiddenVideoRef?.current; // Leer del video oculto, no del visible
+    const video = hiddenVideoRef?.current;
 
     if (!canvas || !video) {
       rafRef.current = requestAnimationFrame(drawFrame);
       return;
     }
 
-    // Adaptar canvas si la resolución de video cambia
     if (video.videoWidth && video.videoHeight) {
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth;
@@ -236,27 +208,20 @@ export function useInstacam(containerRef, videoRef) {
     const filterDef = FILTERS[filterKey];
 
     if (!filterDef || filterDef.type === 'css') {
-      // ── Filtro CSS (como instacam _compute() + viewport.style.filter) ──
       const filterCss = filterDef?.css || 'none';
 
-      // IMPORTANTE: ctx.filter debe ir DENTRO del save/restore block.
-      // save() guarda el estado sin filtro, luego ponemos filtro + scale,
-      // drawImage se renderiza con ambos, restore() los limpia para el próximo frame.
       ctx.save();
       ctx.filter = filterCss;
       ctx.scale(-1, 1);
       ctx.drawImage(video, -w, 0, w, h);
       ctx.restore();
     } else if (filterDef.type === 'pixel') {
-      // ── Filtro pixel (como instacam filter callback + _filter()) ──
-      // Primero dibujar sin filtro CSS
       ctx.save();
       ctx.filter = 'none';
       ctx.scale(-1, 1);
       ctx.drawImage(video, -w, 0, w, h);
       ctx.restore();
 
-      // Luego manipular píxeles (como instacam._filter con getImageData/putImageData)
       const fn = pixelFilters[filterDef.fn];
       if (fn) {
         try {
@@ -264,18 +229,14 @@ export function useInstacam(containerRef, videoRef) {
           fn(imageData, w, h);
           ctx.putImageData(imageData, 0, 0);
         } catch (e) {
-          // SecurityError si el canvas está tainted — ignorar silenciosamente
         }
       }
     } else if (filterDef.type === 'ar') {
-      // ── Filtro AR (MediaPipe + Three.js) ──
       ctx.save();
       ctx.filter = 'none';
       ctx.scale(-1, 1);
-      // Dibujar cámara original
       ctx.drawImage(video, -w, 0, w, h);
       
-      // Dibujar overlay 3D encima
       const arContainer = document.getElementById('ar-canvas');
       const arCanvas = arContainer ? arContainer.querySelector('canvas') : null;
       if (arCanvas) {
@@ -287,10 +248,8 @@ export function useInstacam(containerRef, videoRef) {
     rafRef.current = requestAnimationFrame(drawFrame);
   }, []);
 
-  /**
-   * init — Inicializa el canvas y comienza a capturar frames.
-   * No llama a getUserMedia (a diferencia de instacam.start()).
-   */
+
+  // INITIALIZE CANVAS AND START CAPTURING FRAMES
   const init = useCallback(() => {
     if (!containerRef?.current || !videoRef?.current) {
       console.warn('[INSTACAM] init aborted: missing container or video ref');
@@ -303,13 +262,11 @@ export function useInstacam(containerRef, videoRef) {
 
     const video = videoRef.current;
 
-    // Crear video oculto para leer los frames raw originales sin feedback loops
     if (!hiddenVideoRef.current) {
       const hv = document.createElement('video');
       hv.autoplay = true;
       hv.playsInline = true;
       hv.muted = true;
-      // Clonar la fuente original
       hv.srcObject = video.srcObject;
       hiddenVideoRef.current = hv;
     }
@@ -330,7 +287,6 @@ export function useInstacam(containerRef, videoRef) {
     }
 
     try {
-      // Intentar obtener el stream del canvas
       const stream = canvas.captureStream(30);
       streamRef.current = stream;
       isRunningRef.current = true;
@@ -342,7 +298,8 @@ export function useInstacam(containerRef, videoRef) {
     }
   }, [containerRef, videoRef, drawFrame]);
 
-  /** applyFilter — Cambia el filtro activo (efecto inmediato en el próximo frame). */
+
+  // CHANGE THE ACTIVE FILTER EFFECT
   const applyFilter = useCallback((filterKey) => {
     if (!FILTERS[filterKey]) {
       console.warn('[INSTACAM] Unknown filter:', filterKey);
@@ -351,7 +308,8 @@ export function useInstacam(containerRef, videoRef) {
     currentFilterRef.current = filterKey;
   }, []);
 
-  /** destroy — Limpieza completa (como instacam.stop()). */
+
+  // CLEANUP RESOURCES AND STOP PROCESSING
   const destroyInstacam = useCallback(() => {
     isRunningRef.current = false;
     if (rafRef.current) {
@@ -377,7 +335,10 @@ export function useInstacam(containerRef, videoRef) {
     currentFilterRef.current = 'none';
   }, []);
 
+
+  // CLEANUP ON UNMOUNT
   useEffect(() => () => destroyInstacam(), [destroyInstacam]);
+
 
   return { init, applyFilter, destroy: destroyInstacam, currentFilter: currentFilterRef.current };
 }

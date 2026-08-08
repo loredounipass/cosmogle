@@ -1,8 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
 
-// ============================================
-// FSM - Finite State Machine
-// ============================================
 export const AppState = {
   IDLE: 'IDLE',
   CONNECTING: 'CONNECTING',
@@ -13,16 +10,6 @@ export const AppState = {
   DISCONNECTED: 'DISCONNECTED',
 };
 
-/**
- * useAppState — State centralizado de la FSM.
- *
- * Dual-state pattern:
- *  - stateRef.current.appState  → lectura síncrona en callbacks/hooks (sin stale closure)
- *  - appState (useState)        → valor reactivo expuesto a la UI para re-renders
- *
- * Antes (M-01): solo ref → la UI nunca se actualizaba al cambiar el estado FSM.
- * Ahora: setAppState actualiza ambos — la ref Y el estado React.
- */
 export function useAppState() {
   const stateRef = useRef({
     appState: AppState.IDLE,
@@ -48,19 +35,21 @@ export function useAppState() {
   });
 
   const STATE = stateRef.current;
-
-  // M-01: useState so the UI re-renders on FSM transitions
   const [appState, _setAppStateReact] = useState(AppState.IDLE);
 
+
+  // UPDATE APP STATE BOTH SYNCHRONOUSLY AND REACTIVELY
   const setAppState = useCallback((newState) => {
     const old = STATE.appState;
-    STATE.appState = newState;       // keep ref in-sync for synchronous reads
-    _setAppStateReact(newState);     // trigger re-render for reactive consumers
+    STATE.appState = newState;
+    _setAppStateReact(newState);
     console.log(`[FSM] ${old} → ${newState}`);
   }, [STATE]);
 
+
+  // CHECK IF ACTION IS ALLOWED IN CURRENT STATE
   const canPerformAction = useCallback((action) => {
-    const current = STATE.appState;  // read from ref (always up-to-date)
+    const current = STATE.appState;
     if (action === 'cleanup' || action === 'exit') return true;
     if (
       current === AppState.NEGOTIATING &&
@@ -72,6 +61,7 @@ export function useAppState() {
     ) return false;
     return true;
   }, [STATE]);
+
 
   return { STATE, appState, setAppState, canPerformAction };
 }

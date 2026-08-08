@@ -1,31 +1,8 @@
-import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import React from 'react';
+import { useHomeLogic } from '../hooks/useHomeLogic.js';
 
 export default function HomePage() {
-  const navigate = useNavigate();
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 50) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  function handleStart() {
-    navigate('/checking');
-  }
+  const { isLoaded, isScrolled, handleStart } = useHomeLogic();
 
   return (
     <div className="page-home-root">

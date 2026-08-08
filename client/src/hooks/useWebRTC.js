@@ -2,9 +2,8 @@ import { useCallback, useRef } from 'react';
 import { AppState } from './useAppState.js';
 import { enableAudioTracks, enableVideoTracks, getStreamTracks } from '../webrtc/media.js';
 
-// ============================================
-// TIMERS MANAGER (igual que en index.js)
-// ============================================
+
+// CREATE A TIMER MANAGER FOR MANAGING TIMEOUTS
 function createTimerManager() {
   const timers = new Map();
 
@@ -28,16 +27,14 @@ function createTimerManager() {
   return { setTimer, clearTimer, clearAllTimers };
 }
 
-// C-04/C-10: ICE servers come from server /ice endpoint.
-// Fallback is STUN-only (public, no credentials exposed in client code).
+
 const ICE_SERVERS_FALLBACK = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
-
 const CONFIG = {
-  ICE_CONNECTION_TIMEOUT: 30000, // 30s
+  ICE_CONNECTION_TIMEOUT: 30000,
   STATS_INTERVAL: 5000,
   QUALITY: {
     high:   { maxBitrate: 5000000, minBitrate: 1500000 },
@@ -46,29 +43,23 @@ const CONFIG = {
   },
 };
 
-/**
- * useWebRTC — Encapsula toda la lógica WebRTC del index.js original:
- * createPeerConnection, createOffer, handleSdp, handleIce,
- * processPendingMessages, fullCleanup, lightCleanup, restartConnection,
- * configureBitrate, adaptBitrate, startStatsMonitoring.
- */
 export function useWebRTC(STATE, setAppState, canPerformAction, showNotification, addMessage, clearMessages, showTyping, strangerVideoRef, setSpinnerVisible) {
   const timers = useRef(createTimerManager()).current;
   const statsIntervalRef = useRef(null);
   const lastBytesRef = useRef(0);
   const lastTimeRef = useRef(0);
 
-  // ----------------------------------------
-  // HELPERS
-  // ----------------------------------------
+
+  // LOG A MESSAGE TO THE CONSOLE
   function log(type, msg, data = null) {
     console.log(`[${type}] ${msg}`, data || '');
   }
 
+
+  // HANDLE ERRORS AND TRIGGER RECONNECTION ATTEMPTS
   function handleError(type, error) {
     log('ERROR', type, error);
 
-    // If an ICE restart was triggered recently (e.g. last 10 seconds), ignore redundant errors.
     const now = Date.now();
     if (STATE._iceRestartTime && (now - STATE._iceRestartTime < 10000)) {
        log('ERROR', 'Ignored because ICE restart is recently in progress');
@@ -76,14 +67,12 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }
 
     if (type.includes('ICE') || type.includes('connection')) {
-      // Intentar ICE restart una vez antes de rendirse
       if (!STATE._iceRestartTime && STATE.peer && STATE.peer.connectionState !== 'closed') {
         STATE._iceRestartTime = now;
         STATE._iceRestartAttempted = true;
         log('ICE', 'Attempting ICE restart...');
         showNotification('Reconnecting...');
         
-        // Reset FSM to allow the new ICE restart offer
         if (STATE.appState === AppState.NEGOTIATING) {
           setAppState(AppState.CONNECTED);
         }
@@ -91,13 +80,12 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
         try {
           STATE.isNegotiating = false;
           STATE.peer.restartIce();
-          return; // no mostrar error aún, esperar resultado del restart
+          return;
         } catch (e) {
           log('ICE', 'ICE restart failed', e);
         }
       }
 
-      // Si ya se intentó ICE restart o falló, mostrar error
       STATE._iceRestartAttempted = false;
       STATE._iceRestartTime = 0;
       setSpinnerVisible(true);
@@ -106,9 +94,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }
   }
 
-  // ----------------------------------------
-  // VIDEO PLAYBACK
-  // ----------------------------------------
+
+  // ATTEMPT TO PLAY THE REMOTE VIDEO WITH RETRIES
   function attemptPlay() {
     const video = strangerVideoRef?.current;
     if (!video || !video.srcObject) return;
@@ -121,7 +108,6 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     STATE.videoPlayRetries++;
     const delay = Math.min(1000 * Math.pow(2, STATE.videoPlayRetries), 5000);
 
-    // Intentamos reproducir normalmente (con audio)
     video.play().catch((err) => {
       if (err.name === 'NotAllowedError') {
         log('VIDEO', 'Autoplay blocked by browser. Muting to bypass policy...');
@@ -136,6 +122,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     });
   }
 
+
+  // SET UP VIDEO EVENT LISTENERS FOR PLAYBACK RECOVERY
   function setupVideoListeners() {
     const video = strangerVideoRef?.current;
     if (!video) return;
@@ -149,9 +137,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     video.onerror    = () => attemptPlay();
   }
 
-  // ----------------------------------------
-  // BITRATE / STATS
-  // ----------------------------------------
+
+  // CONFIGURE ENCODING PARAMETERS AND BITRATE FOR VIDEO SENDER
   function configureBitrate() {
     if (!STATE.peer) return;
 
@@ -163,11 +150,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
       if (sender.track.kind === 'video') {
         params.encodings[0] = {
           ...params.encodings[0],
-          // Límite máximo seguro para P2P (2.5 Mbps). Dejamos que WebRTC (BWE) lo gestione hacia abajo.
           maxBitrate: 2500000, 
           networkPriority: 'high',
-          // 'maintain-framerate' le dice al navegador que baje la resolución (pixelación)
-          // antes que sacrificar los FPS, asegurando que el video no se vea "super lento".
           degradationPreference: 'maintain-framerate',
         };
       } else if (sender.track.kind === 'audio') {
@@ -181,6 +165,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     });
   }
 
+
+  // START MONITORING CONNECTION STATISTICS
   function startStatsMonitoring() {
     if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
 
@@ -212,9 +198,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }, CONFIG.STATS_INTERVAL);
   }
 
-  // ----------------------------------------
-  // ICE
-  // ----------------------------------------
+
+  // HANDLE INCOMING ICE CANDIDATES
   async function handleIce(candidate) {
     log('ICE', 'handleIce called', candidate);
 
@@ -242,9 +227,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }
   }
 
-  // ----------------------------------------
-  // SDP
-  // ----------------------------------------
+
+  // CREATE AND SEND AN SDP OFFER
   async function createOffer(force = false) {
     if (!STATE.peer || (!force && !canPerformAction('offer'))) {
       log('SDP', 'createOffer blocked');
@@ -273,6 +257,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }
   }
 
+
+  // HANDLE INCOMING SDP OFFERS OR ANSWERS
   async function handleSdp(sdp) {
     if (!STATE.peer) {
       STATE.pendingSdp = sdp;
@@ -316,7 +302,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }
   }
 
-  // H-05: Use sequential for-of loop instead of forEach for async handleIce
+
+  // PROCESS PENDING MESSAGES FROM THE QUEUE
   async function processPendingMessages() {
     if (!STATE.peer) return;
 
@@ -335,16 +322,14 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     }
   }
 
-  // ----------------------------------------
-  // PEER CONNECTION
-  // ----------------------------------------
+
+  // INITIALIZE A NEW PEER CONNECTION
   function createPeerConnection() {
     if (!canPerformAction('peer')) {
       log('PEER', 'Cannot create - action blocked by FSM');
       return;
     }
 
-    // C-04: Use server-provided ICE servers, fallback to STUN-only
     const iceServers = STATE.iceServers || ICE_SERVERS_FALLBACK;
     STATE.peer = new RTCPeerConnection({
       iceServers,
@@ -391,7 +376,7 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
         showNotification('Connected');
         STATE.isReconnecting = false;
         STATE.retryCount = 0;
-        STATE._iceRestartAttempted = false; // reset para futuras reconexiones
+        STATE._iceRestartAttempted = false;
         STATE._iceRestartTime = 0;
       } else if (pState === 'failed') {
         handleError('CONNECTION_FAILED', pState);
@@ -404,14 +389,12 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
       if (pState === 'failed') {
         handleError('ICE_FAILED', pState);
       } else if (pState === 'disconnected') {
-        // 'disconnected' puede ser transitorio — esperamos 4s antes de notificar
         timers.setTimer('iceDisconnect', () => {
           if (STATE.peer?.iceConnectionState === 'disconnected') {
             handleError('ICE_FAILED', 'disconnected');
           }
         }, 4000);
       } else if (pState === 'connected') {
-        // Si se recupera, cancelar el timer de disconnection
         timers.clearTimer('iceDisconnect');
       }
     };
@@ -420,16 +403,12 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
       const isInitiator = STATE.type === 'p1';
       const isConnected = STATE.peer.connectionState === 'connected';
 
-      // Conexión inicial: solo p1 crea el offer (evita SDP glare).
-      // Renegociación (ej: cámara ON): cualquier peer puede crear offer
-      // porque la conexión ya está estable y solo un lado modifica tracks.
       if (STATE.peer.signalingState === 'stable' && (isInitiator || isConnected)) {
         createOffer();
       }
     };
 
     if (STATE.localStream) {
-      // Only enable tracks if they weren't explicitly turned off
       if (!STATE.isCameraOff) {
         enableVideoTracks(STATE.localStream);
       }
@@ -451,9 +430,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     log('PEER', 'Connection created');
   }
 
-  // ----------------------------------------
-  // CLEANUP
-  // ----------------------------------------
+
+  // COMPLETELY CLEAN UP WEBRTC AND MEDIA STATE
   function fullCleanup() {
     log('CLEANUP', 'Starting full cleanup');
     timers.clearAllTimers();
@@ -491,6 +469,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     log('CLEANUP', 'Complete');
   }
 
+
+  // PARTIALLY CLEAN UP STATE FOR NEXT CONNECTION
   function lightCleanup() {
     timers.clearAllTimers();
 
@@ -506,7 +486,6 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     STATE.isNegotiating = false;
     STATE._iceRestartAttempted = false;
 
-    // Apagar cámara: detener y remover video tracks del stream local
     if (STATE.localStream) {
       STATE.localStream.getVideoTracks().forEach((track) => {
         track.stop();
@@ -532,9 +511,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     STATE.roomid = null;
   }
 
-  // ----------------------------------------
-  // RESTART
-  // ----------------------------------------
+
+  // RESTART THE CONNECTION BY DISCONNECTING AND STARTING OVER
   async function restartConnection(initMedia, myVideoEl) {
     STATE.remoteSocket = null;
     STATE.roomid = null;
@@ -568,8 +546,6 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     timers.setTimer('restart-fallback', doRestart, 500);
   }
 
-  // C-08: Store functions in refs so the returned object has stable references
-  // This prevents useSocket from re-registering all event listeners on every render
   const fnsRef = useRef({});
   fnsRef.current = {
     createPeerConnection,
@@ -612,9 +588,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
   };
 }
 
-// ============================================
-// CLIENT ID (estable entre recargas)
-// ============================================
+
+// GET OR GENERATE A PERSISTENT CLIENT ID
 const CLIENT_ID_KEY = 'strangers_client_id';
 export function getClientId() {
   let id = localStorage.getItem(CLIENT_ID_KEY);

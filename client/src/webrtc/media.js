@@ -1,5 +1,6 @@
-// Media Module - Production Ready
 
+
+// GET OPTIMAL NATIVE VIDEO CONSTRAINTS FOR THE DEVICE
 export async function getNativeVideoConstraints() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -17,8 +18,6 @@ export async function getNativeVideoConstraints() {
     const deviceId = videoDevices[0].deviceId;
     const capabilities = navigator.mediaDevices.getSupportedConstraints();
     
-    // Quitamos los límites "max" estrictos y relajamos el "min" de framerate a 15
-    // para que WebRTC prefiera bajar la resolución antes que bajar los FPS
     const constraints = {
       deviceId: deviceId ? { exact: deviceId } : undefined,
       width: { ideal: 1280, min: 640 },
@@ -38,6 +37,8 @@ export async function getNativeVideoConstraints() {
   }
 }
 
+
+// GET FALLBACK VIDEO CONSTRAINTS WHEN OPTIMAL FAILS
 export function getFallbackVideoConstraints() {
   return {
     width: { ideal: 1280, min: 640 },
@@ -47,6 +48,8 @@ export function getFallbackVideoConstraints() {
   };
 }
 
+
+// GET MINIMAL VIDEO CONSTRAINTS FOR LOW-END DEVICES OR POOR CONNECTIONS
 export function getMinimalVideoConstraints() {
   return {
     width: { ideal: 640, min: 320 },
@@ -56,6 +59,8 @@ export function getMinimalVideoConstraints() {
   };
 }
 
+
+// GET MEDIA STREAM WITH SPECIFIED CONSTRAINTS
 export async function getMediaStream(videoConstraints, audioConstraints = null) {
   if (audioConstraints === false || audioConstraints === null) {
     return navigator.mediaDevices.getUserMedia({
@@ -76,8 +81,9 @@ export async function getMediaStream(videoConstraints, audioConstraints = null) 
   });
 }
 
+
+// GET MEDIA STREAM WITH FALLBACK LOGIC ACROSS QUALITY TIERS
 export async function getMediaStreamWithFallback(onFallback, requestAudio = false) {
-  // Try with high quality first
   const highConstraints = await getNativeVideoConstraints();
   
   try {
@@ -85,7 +91,6 @@ export async function getMediaStreamWithFallback(onFallback, requestAudio = fals
   } catch (err) {
     console.warn('[MEDIA] High quality failed, trying fallback:', err.name);
     
-    // Try with fallback constraints
     const fallbackConstraints = getFallbackVideoConstraints();
     
     try {
@@ -93,7 +98,6 @@ export async function getMediaStreamWithFallback(onFallback, requestAudio = fals
     } catch (fallbackErr) {
       console.warn('[MEDIA] Fallback failed, trying minimal:', fallbackErr.name);
       
-      // Try with minimal constraints
       const minimalConstraints = getMinimalVideoConstraints();
       
       try {
@@ -101,7 +105,6 @@ export async function getMediaStreamWithFallback(onFallback, requestAudio = fals
       } catch (minimalErr) {
         console.error('[MEDIA] All video constraints failed:', minimalErr.name);
         
-        // Try audio only if requested
         if (onFallback) onFallback(minimalErr);
         
         if (requestAudio) {
@@ -119,6 +122,8 @@ export async function getMediaStreamWithFallback(onFallback, requestAudio = fals
   }
 }
 
+
+// GET AN AUDIO-ONLY MEDIA STREAM
 export async function getAudioOnlyStream() {
   return navigator.mediaDevices.getUserMedia({
     audio: {
@@ -130,12 +135,16 @@ export async function getAudioOnlyStream() {
   });
 }
 
+
+// STOP ALL TRACKS IN A MEDIA STREAM
 export function stopMediaStream(stream) {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
   }
 }
 
+
+// APPLY ADVANCED VIDEO SETTINGS CONSTRAINTS
 export async function applyVideoSettings(videoTrack, settings = {}) {
   if (!videoTrack) return;
   
@@ -155,6 +164,8 @@ export async function applyVideoSettings(videoTrack, settings = {}) {
   }
 }
 
+
+// ENABLE ALL VIDEO TRACKS IN A STREAM
 export function enableVideoTracks(stream) {
   if (stream) {
     stream.getVideoTracks().forEach(track => {
@@ -163,6 +174,8 @@ export function enableVideoTracks(stream) {
   }
 }
 
+
+// DISABLE ALL VIDEO TRACKS IN A STREAM
 export function disableVideoTracks(stream) {
   if (stream) {
     stream.getVideoTracks().forEach(track => {
@@ -171,6 +184,8 @@ export function disableVideoTracks(stream) {
   }
 }
 
+
+// ENABLE ALL AUDIO TRACKS IN A STREAM
 export function enableAudioTracks(stream) {
   if (stream) {
     stream.getAudioTracks().forEach(track => {
@@ -179,6 +194,8 @@ export function enableAudioTracks(stream) {
   }
 }
 
+
+// DISABLE ALL AUDIO TRACKS IN A STREAM
 export function disableAudioTracks(stream) {
   if (stream) {
     stream.getAudioTracks().forEach(track => {
@@ -187,6 +204,8 @@ export function disableAudioTracks(stream) {
   }
 }
 
+
+// GET SEPARATED VIDEO AND AUDIO TRACKS FROM A STREAM
 export function getStreamTracks(stream) {
   if (!stream) return { video: [], audio: [] };
   

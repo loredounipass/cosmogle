@@ -3,7 +3,6 @@ import { io } from 'socket.io-client';
 import { AppState } from './useAppState.js';
 import { getClientId } from './useWebRTC.js';
 
-// C-03: URL from environment variable instead of hardcoded
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://opulent-space-winner-p4gjrwrg95pc9j5-8000.app.github.dev';
 
 const RECONNECT_CONFIG = {
@@ -13,14 +12,20 @@ const RECONNECT_CONFIG = {
   matchTimeout: 60000,
 };
 
+
+// CHECK IF THE CURRENT ROOM ID MATCHES THE TARGET ROOM ID
 function isValidRoomForSocket(STATE, targetRoomid) {
   return STATE.roomid && STATE.roomid === targetRoomid && STATE.roomid.length > 0;
 }
 
+
+// WAIT FOR A SPECIFIED NUMBER OF MILLISECONDS
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+
+// EXECUTE A FUNCTION WITH EXPONENTIAL BACKOFF ON FAILURE
 async function retryWithBackoff(fn, config = RECONNECT_CONFIG) {
   let lastError = null;
   
@@ -37,6 +42,7 @@ async function retryWithBackoff(fn, config = RECONNECT_CONFIG) {
   
   throw lastError;
 }
+
 
 export function useSocket({
   STATE,
@@ -57,6 +63,8 @@ export function useSocket({
   const reconnectAttemptsRef = useRef(0);
   const isReconnectingRef = useRef(false);
 
+
+  // CLEAR THE MATCHMAKING TIMEOUT IF IT EXISTS
   const clearMatchmakingTimeout = useCallback(() => {
     if (matchmakingTimeoutRef.current) {
       clearTimeout(matchmakingTimeoutRef.current);
@@ -64,6 +72,8 @@ export function useSocket({
     }
   }, []);
 
+
+  // START THE MATCHMAKING TIMEOUT AND EXECUTE CALLBACK ON TIMEOUT
   const startMatchmakingTimeout = useCallback((onTimeout) => {
     clearMatchmakingTimeout();
     matchmakingTimeoutRef.current = setTimeout(() => {
@@ -72,6 +82,8 @@ export function useSocket({
     }, RECONNECT_CONFIG.matchTimeout);
   }, [clearMatchmakingTimeout]);
 
+
+  // INITIALIZE SOCKET CONNECTION AND SET UP EVENT LISTENERS
   const initSocket = useCallback(async () => {
     STATE.socket = io(SOCKET_URL, {
       reconnection: true,
@@ -234,7 +246,6 @@ export function useSocket({
       if (!video) return;
 
       if (cameraOff) {
-        // NO HACER video.pause() porque eso también pausa el audio que viene en el mismo stream!
         video.style.opacity = '0.3';
         video.dataset.cameraOff = '1';
       } else {
@@ -243,8 +254,6 @@ export function useSocket({
         webrtc.attemptPlay();
       }
 
-      // H-03: Don't mute the <video> element — it causes permanent audio loss.
-      // Instead, handle partner mute state via the remote audio track.
       if (typeof muted === 'boolean') {
         const remoteStream = video.srcObject;
         if (remoteStream) {
@@ -345,6 +354,8 @@ export function useSocket({
     startMatchmakingTimeout
   ]);
 
+
+  // DISCONNECT THE SOCKET AND CLEAR TIMEOUTS
   const disconnectSocket = useCallback(() => {
     clearMatchmakingTimeout();
     try {
@@ -355,11 +366,14 @@ export function useSocket({
     } catch (e) {}
   }, [STATE, clearMatchmakingTimeout]);
 
+
+  // CLEANUP TIMEOUTS ON COMPONENT UNMOUNT
   useEffect(() => {
     return () => {
       clearMatchmakingTimeout();
     };
   }, [clearMatchmakingTimeout]);
+
 
   return { initSocket, disconnectSocket };
 }
