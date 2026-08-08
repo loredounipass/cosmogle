@@ -3,6 +3,10 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
+ENV CI=true
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
 # Enable pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -10,7 +14,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Install all deps
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --config.confirmModulesPurge=false
 
 # Copy source and build
 COPY . .
