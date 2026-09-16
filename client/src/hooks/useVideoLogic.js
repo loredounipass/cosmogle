@@ -195,8 +195,15 @@ export const useVideoLogic = () => {
   const handleInput = useCallback((value) => {
     try {
       if (STATE.socket && STATE.roomid) {
-        STATE.socket.emit('typing', { roomid: STATE.roomid, isTyping: true });
         clearTimeout(typingTimerRef.current);
+        
+        // Fix: If input is cleared via backspace, turn off typing indicator immediately
+        if (!value || value.trim() === '') {
+          STATE.socket.emit('typing', { roomid: STATE.roomid, isTyping: false });
+          return;
+        }
+
+        STATE.socket.emit('typing', { roomid: STATE.roomid, isTyping: true });
         typingTimerRef.current = setTimeout(() => {
           try {
             if (STATE.socket && STATE.roomid) {

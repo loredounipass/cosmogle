@@ -55,7 +55,6 @@ const VideoHolder = forwardRef(function VideoHolder(
         <video
           autoPlay
           playsInline
-          muted
           id="video"
           ref={strangerVideoRef}
           className={getStrangerClasses()}
