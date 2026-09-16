@@ -24,7 +24,14 @@ export function useMedia(STATE, showNotification) {
       STATE.isCameraOff = true;
       STATE.isMuted = true;
 
-      STATE.localStream = await getAudioOnlyStream();
+      try {
+        STATE.localStream = await getAudioOnlyStream();
+      } catch (audioErr) {
+        console.warn('[MEDIA] No microphone found or permitted. Creating fallback receive-only stream.', audioErr);
+        STATE.localStream = new MediaStream();
+        STATE.hasNoMicrophone = true;
+      }
+      
       const { audio } = getStreamTracks(STATE.localStream);
       audio.forEach(track => track.enabled = false);
 

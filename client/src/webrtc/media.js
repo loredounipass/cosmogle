@@ -73,6 +73,10 @@ export async function getMediaStream(videoConstraints, audioConstraints = null) 
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
+    channelCount: 1,
+    googEchoCancellation: true,
+    googAutoGainControl: true,
+    googNoiseSuppression: true,
   };
   
   return navigator.mediaDevices.getUserMedia({
@@ -139,6 +143,10 @@ export async function getAudioOnlyStream() {
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
+      channelCount: 1,
+      googEchoCancellation: true,
+      googAutoGainControl: true,
+      googNoiseSuppression: true,
     },
     video: false
   });
