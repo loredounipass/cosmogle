@@ -211,6 +211,15 @@ async function matchPeersAsync(
 
   p2Socket.join(room.roomId);
 
+  // CACHE PARTNER ID AND ROOM ID IN RAM FOR O(1) SIGNALING ROUTING
+  p2Socket.data.roomId = room.roomId;
+  p2Socket.data.partnerId = p1SocketId;
+  const p1Socket = io.sockets.sockets.get(p1SocketId);
+  if (p1Socket) {
+    p1Socket.data.roomId = room.roomId;
+    p1Socket.data.partnerId = p2Socket.id;
+  }
+
   io.to(p1SocketId).emit('roomid', room.roomId);
   p2Socket.emit('roomid', room.roomId);
 

@@ -192,16 +192,15 @@ export function setupSocket(server: http.Server) {
           return;
         }
 
-        const info = await getType(socket.id);
-        if (!info) {
-          logger.warn(LogChannel.SDP, 'No room found for SDP', { socketId: socket.id });
-          return;
-        }
-
-        const targetId = info.partnerId;
+        let targetId = socket.data.partnerId;
         if (!targetId) {
-          logger.warn(LogChannel.SDP, 'No partner for SDP', { socketId: socket.id });
-          return;
+          const info = await getType(socket.id);
+          if (!info || !info.partnerId) {
+            logger.warn(LogChannel.SDP, 'No room/partner found for SDP', { socketId: socket.id });
+            return;
+          }
+          targetId = info.partnerId;
+          socket.data.partnerId = targetId;
         }
 
         logger.info(LogChannel.SDP, `SDP ${data.sdp.type} forwarded`, {
@@ -233,14 +232,16 @@ export function setupSocket(server: http.Server) {
           return;
         }
 
-        const info = await getType(socket.id);
-        if (!info) {
-          logger.debug(LogChannel.ICE, 'No room for ICE candidate', { socketId: socket.id });
-          return;
+        let targetId = socket.data.partnerId;
+        if (!targetId) {
+          const info = await getType(socket.id);
+          if (!info || !info.partnerId) {
+            logger.debug(LogChannel.ICE, 'No room/partner for ICE candidate', { socketId: socket.id });
+            return;
+          }
+          targetId = info.partnerId;
+          socket.data.partnerId = targetId;
         }
-
-        const targetId = info.partnerId;
-        if (!targetId) return;
 
         logger.debug(LogChannel.ICE, 'ICE candidate forwarded', { socketId: socket.id, targetId });
         io.to(targetId).emit('ice:reply', { candidate: data.candidate, from: socket.id });
@@ -253,10 +254,14 @@ export function setupSocket(server: http.Server) {
     // HANDLE WEBRTC RENEGOTIATION REQUEST
     socket.on('renegotiate', async () => {
       try {
-        const info = await getType(socket.id);
-        if (!info) return;
-
-        const targetId = info.partnerId;
+        let targetId = socket.data.partnerId;
+        if (!targetId) {
+          const info = await getType(socket.id);
+          if (!info || !info.partnerId) return;
+          targetId = info.partnerId;
+          socket.data.partnerId = targetId;
+        }
+        
         if (targetId) {
           logger.info(LogChannel.SDP, 'Renegotiation requested', { socketId: socket.id, targetId });
           io.to(targetId).emit('renegotiate', { from: socket.id });
