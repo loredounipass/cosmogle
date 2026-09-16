@@ -4,6 +4,7 @@ import { logger, LogChannel } from './logger';
 import { isRedisConnected } from './redis';
 import { redisState } from './redisState';
 import { validateOrigin } from './utils';
+import crypto from 'crypto';
 
 
 // CONFIGURE AND EXPORT EXPRESS APPLICATION
@@ -34,20 +35,30 @@ export function createApp(getLocalOnlineCount: () => number) {
     ];
 
     let turnUrl  = process.env.TURN_URL?.trim().replace(/^[`'"]|[`'"]$/g, '');
-    const turnUser = process.env.TURN_USERNAME;
-    const turnCred = process.env.TURN_CREDENTIAL;
+    const turnSecret = process.env.TURN_SECRET || process.env.TURN_CREDENTIAL;
 
-    if (turnUrl && turnUser && turnCred) {
+    if (turnUrl && turnSecret) {
       if (turnUrl.startsWith('http')) {
         const urlObj = new URL(turnUrl);
         const hostPort = urlObj.host; 
         turnUrl = `turn:${hostPort}`;
         logger.info(LogChannel.SERVER, 'Sanitized TURN_URL from HTTP to TURN protocol', { original: process.env.TURN_URL, sanitized: turnUrl });
       }
-      servers.push({ urls: turnUrl, username: turnUser, credential: turnCred });
-      servers.push({ urls: `${turnUrl}?transport=tcp`, username: turnUser, credential: turnCred });
+
+      // Generate ephemeral credentials valid for 24 hours
+      const unixTimeStamp = Math.floor(Date.now() / 1000) + 24 * 3600;
+      const turnUsername = [unixTimeStamp, 'cosmogle'].join(':');
       
-      logger.debug(LogChannel.SERVER, 'TURN servers configured', { count: servers.length });
+      const hmac = crypto.createHmac('sha1', turnSecret);
+      hmac.setEncoding('base64');
+      hmac.write(turnUsername);
+      hmac.end();
+      const turnCredential = hmac.read();
+
+      servers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential });
+      servers.push({ urls: `${turnUrl}?transport=tcp`, username: turnUsername, credential: turnCredential });
+      
+      logger.debug(LogChannel.SERVER, 'TURN servers configured with ephemeral credentials', { count: servers.length });
     }
 
     res.json({ servers });
