@@ -180,6 +180,10 @@ export const useVideoLogic = () => {
       const sanitized = sanitize(message);
       try {
         STATE.socket.emit('send-message', sanitized, STATE.type, STATE.roomid);
+        
+        // Fix: clear typing state immediately upon sending
+        clearTimeout(typingTimerRef.current);
+        STATE.socket.emit('typing', { roomid: STATE.roomid, isTyping: false });
       } catch (e) {}
       addMessage(sanitized, true);
       if (inputRef.current) inputRef.current.value = '';

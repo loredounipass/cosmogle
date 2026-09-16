@@ -37,12 +37,12 @@ services:
     ports:
       - "3478:3478"
       - "3478:3478/udp"
-      - "49152-65535:49152-65535/udp"
+      - "49152-49252:49152-49252/udp"
     env_file:
       - ./server/.env
     entrypoint: ["sh", "-c"]
     command:
-      - "turnserver -n --log-file=stdout --min-port=49152 --max-port=65535 --use-auth-secret --static-auth-secret=$${TURN_SECRET} --realm=$${TURN_REALM}"
+      - "turnserver -n --log-file=stdout --min-port=49152 --max-port=49252 --use-auth-secret --static-auth-secret=$${TURN_SECRET} --realm=$${TURN_REALM} --no-tls"
     networks:
       - backend
 

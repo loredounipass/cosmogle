@@ -15,7 +15,7 @@ export default function ChatHolder({
   onInput,
   appState,
 }) {
-  const isConnected = appState === AppState.CONNECTED;
+  const isConnected = appState === AppState.CONNECTED || appState === AppState.MATCHED || appState === AppState.NEGOTIATING;
   const messagesEndRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pickerWidth, setPickerWidth] = useState(320);
