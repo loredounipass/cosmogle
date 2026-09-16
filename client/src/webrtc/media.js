@@ -1,6 +1,6 @@
 
 
-// GET OPTIMAL NATIVE VIDEO CONSTRAINTS FOR THE DEVICE
+// GET OPTIMAL NATIVE VIDEO CONSTRAINTS FOR THE DEVICE (HIGH TIER)
 export async function getNativeVideoConstraints() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -10,7 +10,7 @@ export async function getNativeVideoConstraints() {
       return {
         width: { ideal: 1280, min: 640 },
         height: { ideal: 720, min: 480 },
-        frameRate: { ideal: 30, min: 15 },
+        frameRate: { ideal: 30, min: 24 },
         facingMode: "user"
       };
     }
@@ -22,7 +22,7 @@ export async function getNativeVideoConstraints() {
       deviceId: deviceId ? { exact: deviceId } : undefined,
       width: { ideal: 1280, min: 640 },
       height: { ideal: 720, min: 480 },
-      frameRate: { ideal: 30, min: 15 },
+      frameRate: { ideal: 30, min: 24 },
       facingMode: "user"
     };
     
@@ -38,23 +38,23 @@ export async function getNativeVideoConstraints() {
 }
 
 
-// GET FALLBACK VIDEO CONSTRAINTS WHEN OPTIMAL FAILS
+// GET FALLBACK VIDEO CONSTRAINTS WHEN OPTIMAL FAILS (MEDIUM TIER)
 export function getFallbackVideoConstraints() {
   return {
-    width: { ideal: 1280, min: 640 },
-    height: { ideal: 720, min: 480 },
-    frameRate: { ideal: 30, min: 15 },
+    width: { ideal: 640, min: 480 },
+    height: { ideal: 480, min: 360 },
+    frameRate: { ideal: 24, min: 15 },
     facingMode: "user"
   };
 }
 
 
-// GET MINIMAL VIDEO CONSTRAINTS FOR LOW-END DEVICES OR POOR CONNECTIONS
+// GET MINIMAL VIDEO CONSTRAINTS FOR LOW-END DEVICES OR POOR CONNECTIONS (LOW TIER)
 export function getMinimalVideoConstraints() {
   return {
-    width: { ideal: 640, min: 320 },
-    height: { ideal: 480, min: 240 },
-    frameRate: { ideal: 24, min: 15 },
+    width: { ideal: 320, min: 240 },
+    height: { ideal: 240, min: 144 },
+    frameRate: { ideal: 15, max: 15 },
     facingMode: "user"
   };
 }
@@ -83,27 +83,36 @@ export async function getMediaStream(videoConstraints, audioConstraints = null) 
 
 
 // GET MEDIA STREAM WITH FALLBACK LOGIC ACROSS QUALITY TIERS
-export async function getMediaStreamWithFallback(onFallback, requestAudio = false) {
-  const highConstraints = await getNativeVideoConstraints();
+export async function getMediaStreamWithFallback(onFallback, requestAudio = false, initialTier = 'high') {
+  let initialConstraints;
+  if (initialTier === 'low') {
+    initialConstraints = getMinimalVideoConstraints();
+  } else if (initialTier === 'medium') {
+    initialConstraints = getFallbackVideoConstraints();
+  } else {
+    initialConstraints = await getNativeVideoConstraints();
+  }
   
   try {
-    return await getMediaStream(highConstraints, requestAudio);
+    return await getMediaStream(initialConstraints, requestAudio);
   } catch (err) {
-    console.warn('[MEDIA] High quality failed, trying fallback:', err.name);
+    console.warn(`[MEDIA] ${initialTier} quality failed, trying fallback:`, err.name);
     
-    const fallbackConstraints = getFallbackVideoConstraints();
+    const fallbackConstraints = initialTier === 'high' ? getFallbackVideoConstraints() : getMinimalVideoConstraints();
     
     try {
+      if (initialTier === 'low') throw new Error('Already at minimal tier');
       return await getMediaStream(fallbackConstraints, requestAudio);
     } catch (fallbackErr) {
-      console.warn('[MEDIA] Fallback failed, trying minimal:', fallbackErr.name);
+      console.warn('[MEDIA] Fallback failed, trying minimal:', fallbackErr.name || fallbackErr.message);
       
       const minimalConstraints = getMinimalVideoConstraints();
       
       try {
+        if (initialTier !== 'high') throw new Error('Already at minimal tier');
         return await getMediaStream(minimalConstraints, requestAudio);
       } catch (minimalErr) {
-        console.error('[MEDIA] All video constraints failed:', minimalErr.name);
+        console.error('[MEDIA] All video constraints failed:', minimalErr.name || minimalErr.message);
         
         if (onFallback) onFallback(minimalErr);
         

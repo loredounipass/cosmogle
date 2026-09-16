@@ -142,6 +142,9 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
   function configureBitrate() {
     if (!STATE.peer) return;
 
+    const currentTier = STATE.currentQualityLevel || 'high';
+    const limits = CONFIG.QUALITY[currentTier] || CONFIG.QUALITY.high;
+
     STATE.peer.getSenders().forEach((sender) => {
       if (!sender.track) return;
       const params = sender.getParameters();
@@ -150,8 +153,9 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
       if (sender.track.kind === 'video') {
         params.encodings[0] = {
           ...params.encodings[0],
-          maxBitrate: 2500000, 
-          networkPriority: 'high',
+          maxBitrate: limits.maxBitrate, 
+          scaleResolutionDownBy: currentTier === 'low' ? 2.0 : (currentTier === 'medium' ? 1.5 : 1.0),
+          networkPriority: currentTier === 'high' ? 'high' : 'low',
           degradationPreference: 'maintain-framerate',
         };
       } else if (sender.track.kind === 'audio') {
@@ -190,7 +194,36 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
         if (!videoInbound) return;
 
         const now = Date.now();
-        lastBytesRef.current = videoInbound.bytesReceived || 0;
+        const bytesNow = videoInbound.bytesReceived || 0;
+        
+        if (lastTimeRef.current && lastBytesRef.current) {
+          const dt = (now - lastTimeRef.current) / 1000;
+          const bytesDiff = bytesNow - lastBytesRef.current;
+          const kbps = (bytesDiff * 8) / 1000 / dt;
+          
+          const packetsLost = videoInbound.packetsLost || 0;
+          const packetsReceived = videoInbound.packetsReceived || 1;
+          const lossRate = packetsLost / Math.max(packetsReceived, 1);
+          
+          let tierChanged = false;
+          let currentTier = STATE.currentQualityLevel || 'high';
+
+          if (lossRate > 0.05 || (kbps > 0 && kbps < 300)) {
+            if (currentTier === 'high') { currentTier = 'medium'; tierChanged = true; }
+            else if (currentTier === 'medium') { currentTier = 'low'; tierChanged = true; }
+          } else if (lossRate < 0.01 && kbps > 1500) {
+            if (currentTier === 'low') { currentTier = 'medium'; tierChanged = true; }
+            else if (currentTier === 'medium') { currentTier = 'high'; tierChanged = true; }
+          }
+
+          if (tierChanged) {
+             log('STATS', `Quality tier changed to ${currentTier}`, { kbps, lossRate });
+             STATE.currentQualityLevel = currentTier;
+             configureBitrate();
+          }
+        }
+        
+        lastBytesRef.current = bytesNow;
         lastTimeRef.current = now;
       } catch (e) {
         log('STATS', 'Error getting stats', e);

@@ -7,6 +7,15 @@ import {
   stopMediaStream,
 } from '../webrtc/media.js';
 
+function getInitialTier() {
+  if (navigator.connection && navigator.connection.downlink) {
+    if (navigator.connection.downlink >= 3.0) return 'high';
+    if (navigator.connection.downlink >= 1.0) return 'medium';
+    return 'low';
+  }
+  return 'high';
+}
+
 export function useMedia(STATE, showNotification) {
 
   // INITIALIZE MEDIA WITH AUDIO ONLY BY DEFAULT
@@ -47,9 +56,12 @@ export function useMedia(STATE, showNotification) {
       if (video.length === 0 && STATE.isCameraOff) {
         showNotification('Requesting camera...');
         try {
+          const initialTier = getInitialTier();
+          if (STATE) STATE.currentQualityLevel = initialTier;
+          
           const newStream = await getMediaStreamWithFallback((err) => {
             console.warn('[MEDIA] Fallback camera init', err?.name);
-          }, false);
+          }, false, initialTier);
 
           const newVideo = newStream.getVideoTracks();
           if (!newVideo || newVideo.length === 0) {
