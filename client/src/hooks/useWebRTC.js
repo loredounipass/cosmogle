@@ -161,7 +161,7 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
       } else if (sender.track.kind === 'audio') {
         params.encodings[0] = {
           ...params.encodings[0],
-          maxBitrate: 128000,
+          maxBitrate: currentTier === 'low' ? 32000 : (currentTier === 'medium' ? 64000 : 128000),
           priority: 'high',
         };
       }
@@ -261,6 +261,27 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
   }
 
 
+  // TWEAK SDP FOR OPUS FEC AND DTX
+  function tweakSDP(sdp) {
+    if (!sdp || !sdp.sdp) return sdp;
+    let sdpString = sdp.sdp;
+    
+    const opusMatch = sdpString.match(/a=rtpmap:(\d+) opus\/48000\/2/);
+    if (opusMatch) {
+      const pt = opusMatch[1];
+      const fmtpRegex = new RegExp(`a=fmtp:${pt} (.*)`);
+      if (fmtpRegex.test(sdpString)) {
+        sdpString = sdpString.replace(fmtpRegex, `a=fmtp:${pt} $1;useinbandfec=1;usedtx=1`);
+      } else {
+        const rtpmapRegex = new RegExp(`(a=rtpmap:${pt} opus\\/48000\\/2\\r?\\n)`);
+        sdpString = sdpString.replace(rtpmapRegex, `$1a=fmtp:${pt} useinbandfec=1;usedtx=1\r\n`);
+      }
+    }
+    
+    return { type: sdp.type, sdp: sdpString };
+  }
+
+
   // CREATE AND SEND AN SDP OFFER
   async function createOffer(force = false) {
     if (!STATE.peer || (!force && !canPerformAction('offer'))) {
@@ -276,10 +297,11 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
     setAppState(AppState.NEGOTIATING);
 
     try {
-      const offer = await STATE.peer.createOffer({
+      let offer = await STATE.peer.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
       });
+      offer = tweakSDP(offer);
       await STATE.peer.setLocalDescription(offer);
       log('SDP', 'Sending offer', STATE.peer.localDescription.type);
       try { STATE.socket.emit('sdp:send', { sdp: STATE.peer.localDescription }); } catch (e) {}
@@ -317,7 +339,8 @@ export function useWebRTC(STATE, setAppState, canPerformAction, showNotification
           await STATE.peer.setRemoteDescription(new RTCSessionDescription(sdp));
         }
 
-        const answer = await STATE.peer.createAnswer();
+        let answer = await STATE.peer.createAnswer();
+        answer = tweakSDP(answer);
         await STATE.peer.setLocalDescription(answer);
         log('SDP', 'Sending answer', STATE.peer.localDescription.type);
         try { STATE.socket.emit('sdp:send', { sdp: STATE.peer.localDescription }); } catch (e) {}
